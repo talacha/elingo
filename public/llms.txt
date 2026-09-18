@@ -1,0 +1,51 @@
+# ELI - AI Tutor for 6th Grade Students
+
+## What is ELI?
+
+ELI (Tutor Nexo) is an AI-powered study tutor designed specifically for 6th-grade students (ages 11-12) in Spanish-speaking contexts. The application helps students prepare for secondary school by guiding them through their homework and coursework challenges.
+
+## How ELI Works
+
+ELI uses the Socratic method to guide students toward understanding without providing direct answers:
+
+1. **Student asks a question** about a problem they don't understand in Math, Spanish, or Science.
+2. **ELI asks guiding questions** one at a time, helping the student identify what they know.
+3. **Student discovers the answer themselves**, building genuine understanding and confidence for future problems.
+
+## Core Philosophy
+
+ELI never gives the final answer or writes complete texts for students. Instead, it:
+- Breaks down problems step by step
+- Asks students to identify key information first
+- Corrects mistakes positively ("Good attempt, let's review the previous step")
+- Explains concepts using modern analogies (video games, everyday life)
+- Keeps responses short, clear, and in simple Spanish without complex jargon
+
+## Subjects Covered
+
+- **Mathematics**: Addition, subtraction, fractions, word problems, basic geometry
+- **Spanish**: Reading comprehension, writing, grammar, storytelling
+- **Science**: Biology, physics, chemistry, earth sciences, human body
+
+## Usage Context
+
+Typical sessions are short (5-20 minutes) after school when students get stuck on specific homework challenges. The app works on mobile and desktop browsers.
+
+## Safety & Privacy
+
+- No personal data collection beyond anonymous session tracking
+- Refusals to harmful requests are handled gracefully
+- Age-appropriate content and interaction model
+- No financial transactions or account creation required for core functionality
+
+## Language
+
+The interface and all tutoring is in Spanish. The application is localized for Spanish-speaking students and parents.
+
+## Availability
+
+ELI is deployed at eli.ngo and works without requiring authentication or payment during the beta phase.
+
+---
+
+For more information, visit the public landing page or contact the development team at the main website.
