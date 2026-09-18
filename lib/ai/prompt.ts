@@ -17,3 +17,11 @@ export const ELI_SYSTEM_PROMPT =
  */
 export const REFUSAL_MESSAGE =
   "Eso no puedo ayudarte a resolverlo aquí, pero si quieres seguimos con tus deberes.";
+
+/**
+ * Mensaje fijo y amable que ve la alumna cuando el proveedor de IA falla (límite de peticiones,
+ * caída, red). Va dentro del propio stream, igual que `REFUSAL_MESSAGE`; los detalles técnicos se
+ * quedan en el log del servidor.
+ */
+export const UPSTREAM_ERROR_MESSAGE =
+  "Uy, ahora mismo no consigo pensar con claridad. Espera un momentito y vuelve a intentarlo, que aquí sigo.";
