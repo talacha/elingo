@@ -68,6 +68,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Enforce image restrictions: if user is authenticated and disallows images,
+    // reject messages with images before processing.
+    if (userId) {
+      try {
+        const repo = getRepo();
+        const security = await repo.getUserSecurity(userId);
+        const lastMessage = messages.at(-1);
+        if (security && !security.allowImages && lastMessage?.image) {
+          return NextResponse.json(
+            ...chatErrorResponse(
+              "invalid_request",
+              "Las imágenes están desactivadas para esta cuenta. Pídele a quien te acompaña que las active en /parents.",
+              400
+            )
+          );
+        }
+      } catch (error) {
+        // Log error but proceed gracefully (permissive default)
+        console.error("[chat] Failed to check user security flags:", error);
+      }
+    }
+
     // Get or create the anonymous cookie
     let anonId = req.cookies.get(ANON_COOKIE)?.value;
     let setCookie = false;

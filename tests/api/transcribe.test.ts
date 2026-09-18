@@ -4,11 +4,17 @@ import { resetRateLimiter } from "@/lib/ratelimit";
 import { resetEnvCache } from "@/lib/env";
 import { ANON_COOKIE } from "@/lib/contracts/chat";
 import type { TranscribeRequest } from "@/lib/contracts/media";
+import { getRepo, resetRepo } from "@/lib/db";
 import { NextRequest } from "next/server";
 
 /** Mock transcribeAudio to isolate route logic */
 vi.mock("@/lib/ai/transcribe", () => ({
   transcribeAudio: vi.fn(),
+}));
+
+/** Mock Supabase server client */
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: vi.fn(),
 }));
 
 /** Create a valid test request. */
@@ -41,6 +47,8 @@ describe("POST /api/transcribe", () => {
   beforeEach(async () => {
     resetEnvCache();
     resetRateLimiter();
+    resetRepo();
+    delete process.env.RATE_LIMIT_MAX;
     vi.clearAllMocks();
 
     const transcribeModule = await import("@/lib/ai/transcribe");
@@ -50,6 +58,8 @@ describe("POST /api/transcribe", () => {
   afterEach(() => {
     resetEnvCache();
     resetRateLimiter();
+    resetRepo();
+    delete process.env.RATE_LIMIT_MAX;
   });
 
   describe("input validation", () => {
@@ -243,6 +253,96 @@ describe("POST /api/transcribe", () => {
       });
       const res2 = await POST(req2);
       expect(res2.status).toBe(200);
+    });
+  });
+
+  describe("user security flags (M7 - voice)", () => {
+    it("allows authenticated user with allowVoice=true to transcribe", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-1",
+        displayName: "Test",
+      });
+      await repo.updateUserFlags(user.id, { allowVoice: true });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-1", email: "a@b.com", user_metadata: { display_name: "Test" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      transcribeAudioMock.mockResolvedValue("Hola, esto es transcrito");
+      const req = createNextRequest(createTranscribeRequest());
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("returns 204 (unavailable) for authenticated user with allowVoice=false", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-2",
+        displayName: "Test2",
+      });
+      await repo.updateUserFlags(user.id, { allowVoice: false });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-2", email: "b@b.com", user_metadata: { display_name: "Test2" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const req = createNextRequest(createTranscribeRequest());
+      const response = await POST(req);
+      expect(response.status).toBe(204);
+    });
+
+    it("allows anonymous user to transcribe regardless of flags", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      vi.mocked(createSupabaseServerClient).mockResolvedValue(null);
+
+      transcribeAudioMock.mockResolvedValue("Hola, anónimo");
+      const req = createNextRequest(createTranscribeRequest());
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("gracefully handles getUserSecurity errors", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-3",
+        displayName: "Test3",
+      });
+      vi.spyOn(repo, "getUserSecurity").mockRejectedValueOnce(new Error("DB error"));
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-3", email: "c@b.com", user_metadata: { display_name: "Test3" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      transcribeAudioMock.mockResolvedValue("test");
+      const req = createNextRequest(createTranscribeRequest());
+      const response = await POST(req);
+      // Should proceed as if user were anonymous (permissive default)
+      expect(response.status).toBe(200);
     });
   });
 });

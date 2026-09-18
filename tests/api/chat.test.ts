@@ -4,6 +4,7 @@ import { resetRateLimiter } from "@/lib/ratelimit";
 import { resetEnvCache } from "@/lib/env";
 import { ANON_COOKIE, CHAT_HEADERS } from "@/lib/contracts/chat";
 import type { ChatRequest } from "@/lib/contracts/chat";
+import { getRepo, resetRepo } from "@/lib/db";
 import { NextRequest } from "next/server";
 
 /** Minimal mock for QStash to avoid persistence overhead in tests. */
@@ -24,6 +25,11 @@ vi.mock("next/server", async () => {
     }),
   };
 });
+
+/** Mock Supabase server client. */
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: vi.fn(),
+}));
 
 /** Create a valid test request. */
 function createChatRequest(overrides?: Partial<ChatRequest>): ChatRequest {
@@ -50,12 +56,18 @@ describe("POST /api/chat", () => {
   beforeEach(() => {
     resetEnvCache();
     resetRateLimiter();
+    resetRepo();
+    delete process.env.RATE_LIMIT_MAX;
+    delete process.env.AI_MAX_INPUT_CHARS;
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     resetEnvCache();
     resetRateLimiter();
+    resetRepo();
+    delete process.env.RATE_LIMIT_MAX;
+    delete process.env.AI_MAX_INPUT_CHARS;
   });
 
   describe("anonymous cookie (eli_anon)", () => {
@@ -281,6 +293,180 @@ describe("POST /api/chat", () => {
       expect(response.status).toBe(400);
       const body = await response.json();
       expect(body.error).toBe("invalid_request");
+    });
+  });
+
+  describe("user security flags (M7)", () => {
+    it("allows authenticated user with allowImages=true to send image", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-1",
+        displayName: "Test",
+      });
+      await repo.updateUserFlags(user.id, { allowImages: true });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-1", email: "a@b.com", user_metadata: { display_name: "Test" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const req = createNextRequest(
+        createChatRequest({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              content: "Mira esta foto",
+              image: { mediaType: "image/jpeg", data: "fake-base64-data" },
+            },
+          ],
+        })
+      );
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("rejects authenticated user with allowImages=false sending image", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-2",
+        displayName: "Test2",
+      });
+      await repo.updateUserFlags(user.id, { allowImages: false });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-2", email: "b@b.com", user_metadata: { display_name: "Test2" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const req = createNextRequest(
+        createChatRequest({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              content: "Mira esta foto",
+              image: { mediaType: "image/jpeg", data: "fake-base64-data" },
+            },
+          ],
+        })
+      );
+
+      const response = await POST(req);
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error).toBe("invalid_request");
+      expect(body.message).toContain("imágenes están desactivadas");
+    });
+
+    it("allows authenticated user with allowImages=false to send text-only message", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-3",
+        displayName: "Test3",
+      });
+      await repo.updateUserFlags(user.id, { allowImages: false });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-3", email: "c@b.com", user_metadata: { display_name: "Test3" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const req = createNextRequest(
+        createChatRequest({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              content: "Pregunta de texto",
+            },
+          ],
+        })
+      );
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("allows anonymous user to send image regardless of flags", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      vi.mocked(createSupabaseServerClient).mockResolvedValue(null);
+
+      const req = createNextRequest(
+        createChatRequest({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              content: "Mira esta foto",
+              image: { mediaType: "image/jpeg", data: "fake-base64-data" },
+            },
+          ],
+        })
+      );
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("gracefully handles getUserSecurity errors", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-4",
+        displayName: "Test4",
+      });
+      vi.spyOn(repo, "getUserSecurity").mockRejectedValueOnce(new Error("DB error"));
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-4", email: "d@b.com", user_metadata: { display_name: "Test4" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const req = createNextRequest(
+        createChatRequest({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              content: "Mira esta foto",
+              image: { mediaType: "image/jpeg", data: "fake-base64-data" },
+            },
+          ],
+        })
+      );
+
+      // Should not crash; should proceed as if user were anonymous (permissive default)
+      const response = await POST(req);
+      expect(response.status).toBe(200);
     });
   });
 });
