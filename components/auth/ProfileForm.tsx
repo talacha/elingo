@@ -111,7 +111,7 @@ export function ProfileForm() {
     return (
       <Card className="w-full max-w-md mx-auto">
         <p className="text-center text-ink-soft mb-4">
-          Debes estar autenticada para acceder al perfil.
+          Te enviamos un email. Debes verificar tu cuenta de email para poder registrarte.
         </p>
         <div className="flex gap-2 justify-center">
           <Button href="/login" variant="secondary">
