@@ -472,6 +472,10 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-068 | M7 | FE | done | T-066, T-067 | 0 | 2026-09-18 · orquestador · AdminDashboard con lista de usuarios y selector de proveedor/modelo activo; tests en verde |
 | T-069 | M7 | FE | done | T-063 | 0 | 2026-09-18 · orquestador · ChatView oculta botones de micrófono/cámara según flags; ChatInput respeta capabilities.allowVoice/allowImages; tests en verde |
 | T-045 | M4 | HU | done | T-041, T-042 | 0 | 2026-09-18 · humano · lanzado en `https://eli.ngo`. Verificado en vivo contra los 8 criterios de `north_star.md`: (1) chat funciona en el dominio real — confirmado; (2) primer token rápido — respuesta completa en ~10s, TTFB no medido con precisión; (3) español, negritas y viñetas — confirmado con una conversación real de mates; (4) nunca da la respuesta — confirmado, incluso insistiendo directamente ("dame la respuesta") ELI redirige; (5) historial async en Neon — arquitectura ya cubierta por tests, `GET /api/health` confirma `db: "neon"` en vivo; (6) rate limit activo — `redis: true` en `/api/health` (Upstash real, no memoria), no estresado con 21 peticiones reales; (7) presupuesto acotado — existe (T-042), no agotado a propósito para no interrumpir el lanzamiento; (8) todo sin claves — cubierto continuamente por `pnpm check`/`pnpm smoke` en CI. `GET https://www.eli.ngo/api/health` → `{"ok":true,"provider":"anthropic","model":"claude-fable-5-1","db":"neon","redis":true}` |
+| T-070 | M8 | FE | todo | T-054 | 0 | Arreglar bug del micrófono: `onend` quedaba colgada dejando el botón visualmente en "escuchando"; conversión a base64 en bloques de 8KB para grabaciones largas; verificación de permisos (micrófono activado) |
+| T-071 | M8 | FE | todo | T-023 | 0 | Mostrar modelo activo en el chat: burbuja de sistema inicial o header con "Modelo: claude-fable-5-1" (o el activo según `/api/health` o env); leer de cabecera `x-model` de `/api/chat` |
+| T-072 | M8 | BE | todo | T-067 | 0 | Documentación: sección 6 de `tasks.md` → 6.14 `admin.ts` con flujo de hot-reload de modelo; verificar que `/api/admin/config` guarda en BD sin corrupciones |
+| T-073 | M8 | FE | todo | T-031, T-065 | 0 | Flujo end-to-end: signup → login → `/parents` (palabra segura, ajustes, informes) → `/chat` (flags aplicados); test de cámara/micrófono ocultos cuando `allowImages`=false/`allowVoice`=false |
 
 ## 8. Detalle de tareas
 
@@ -697,6 +701,34 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 - **Qué**: la página de chat lee los ajustes de la cuenta autenticada (si la hay) y oculta el botón de micrófono/cámara en `ChatInput` cuando `allowVoice`/`allowImages` está desactivado, sin romper el chat anónimo (que no tiene ajustes que consultar).
 - **Definición de hecho**: con `allowImages: false` en una cuenta de prueba, el botón de cámara no aparece; sin sesión, el comportamiento no cambia respecto a M6.
+
+### T-070 · FE · Arreglar bug del micrófono
+
+- **Qué**: en T-054, `useSpeechInput` deja el botón visualmente en "escuchando" si el usuario cierra o recarga la página mientras está grabando, porque `onend` no se ejecuta correctamente (cierre obsoleto). Además, la conversión a base64 con `String.fromCharCode.apply` desbordar con grabaciones largas.
+- **Archivos**: `components/chat/useSpeechInput.ts`, `tests/chat/useSpeechInput.test.ts` (ampliar con casos extremos).
+- **Definición de hecho**: `onend` limpia correctamente el estado del botón (siempre vuelve a "normal" después de grabar o abortar). Base64 se convierte en bloques de 8 KB para evitar desbordamientos de pila. Tests de sesiones cortadas, grabaciones largas (>30 s), permisos denegados; `pnpm check` verde.
+- **Verificación**: `pnpm dev`, pulsar micrófono, recargar la página mientras se graba → el botón debe volver a normal, no quedarse en estado "escuchando".
+
+### T-071 · FE · Mostrar modelo activo en el chat
+
+- **Qué**: hacerle visible a la alumna cuál es el modelo de IA que está respondiendo (p. ej., "claude-fable-5-1" cuando se usa Anthropic, "deepseek-v4" si es OpenRouter, "mock" en local).
+- **Archivos**: `components/chat/ChatView.tsx`, `components/chat/SystemMessage.tsx` (nuevo), ajustes en `useTutorChat.ts` para leer la cabecera `x-model` de `/api/chat`.
+- **Definición de hecho**: el primer mensaje que aparece en la conversación (antes de escribir nada) es una burbuja gris sutil con "ELI está aquí. Modelo: `<model>`" (o similar, amable para una niña). La cabecera `x-model` se lee de cada respuesta `/api/chat` (ya está ahí desde T-023) y se actualiza dinámicamente (si un admin cambia el modelo en `/admin`, la siguiente respuesta refleja el cambio). Tests de lectura de cabecera, fallback si falta la cabecera (`model: "unknown"`), rendering en móvil.
+- **Verificación**: `pnpm dev`, abrir chat, ver la burbuja de sistema con el modelo. Cambiar `AI_PROVIDER=mock` en `.env.local` y verificar que muestra "mock".
+
+### T-072 · BE · Documentación y validación de `/api/admin/config`
+
+- **Qué**: documentar en la sección 6 de `tasks.md` el flujo completo de hot-reload del modelo, validar que `/api/admin/config` (creada en T-067) funciona sin corruppciones de datos, y verificar que el caché de proceso funciona correctamente.
+- **Archivos**: `tasks.md` (nueva sección 6.14), `app/api/admin/config/route.ts`, `tests/api/admin.test.ts` (ampliación si es necesario).
+- **Definición de hecho**: sección 6.14 documenta: qué es `AI_CONFIG_KEYS`, cómo se lee (BD → caché → env vars con fallback), cómo se actualiza (PUT crea/actualiza en BD sin tocar env vars), TTL del caché. Tests de: cambiar modelo en BD, validar que la siguiente lectura toma el valor nuevo, desbloquear a un admin distinto de quien lo cambió (verificar RBAC mínimo). `pnpm check` verde.
+- **Verificación**: `pnpm test -- admin` (si existen), lectura de `/api/admin/config` y verificación del caché con `pnpm dev` y logs.
+
+### T-073 · FE · Flujo end-to-end: signup → parents → chat
+
+- **Qué**: validar que un usuario puede registrarse, fijar su palabra segura, entrar en `/parents`, cambiar ajustes (ej. apagar imágenes), volver a `/chat` y ver que el botón de cámara desaparece.
+- **Archivos**: `tests/e2e/auth-and-parents.spec.ts` (nueva, con Playwright), o ampliar `e2e/chat.spec.ts`.
+- **Definición de hecho**: test de Playwright con navegador real: (1) en `/` o `/chat`, clickar "Registrarse" (botón en header, T-031); (2) rellenar email/password y crear cuenta (mock de Supabase, `SUPABASE_URL` puede ser vacío); (3) ir a `/parents`, fijar palabra segura ("pepe1234"); (4) entrar en ajustes, apagar `allowImages`; (5) volver a `/chat`, verificar que el botón de cámara no aparece; (6) apagar `allowVoice`; (7) volver a `/chat`, verificar que el botón de micrófono tampoco aparece. Test fallido si algún paso no funciona. Job en CI (no-blocking por ahora, hasta que sea estable).
+- **Verificación**: `pnpm e2e -- auth-and-parents` con `SUPABASE_*` en `.env.local` (o simulado en memoria si `getSupabaseClient()` lo permite).
 
 ## 9. Bandeja (estado `new`)
 
