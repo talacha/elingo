@@ -330,7 +330,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-040 | M4 | HU | todo | T-016 | 0 | |
 | T-041 | M4 | DO | done | T-016 | 1 | cabeceras de seguridad (CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy) en `next.config.ts`; `app/robots.ts` ya correcto del merge anterior; región Vercel y variables prod: pendiente de humano |
 | T-042 | M4 | BE | todo | T-017, T-021 | 1 | |
-| T-043 | M4 | FE | todo | T-015 | 0 | |
+| T-043 | M4 | FE | done | T-015 | 0 | 2026-09-18 · frontend · favicon `app/icon.svg` derivado de EliMark (lucecita + base), keyframe `fadeIn` gateado con `motion-reduce`, aplicado a burbujas de chat; contraste AA ya verificado; `pnpm check` verde; Lighthouse no verificado en este entorno |
 | T-044 | M4 | BE | todo | T-018, T-002 | 0 | |
 | T-045 | M4 | HU | todo | T-041, T-042 | 0 | |
 
