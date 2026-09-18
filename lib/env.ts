@@ -53,6 +53,9 @@ export const envSchema = z.object({
   /** M7: correos separados por comas con acceso a /admin; vacío por defecto → nadie. */
   ADMIN_EMAILS: z.string().optional(),
   DAILY_TOKEN_BUDGET: positiveInt(2_000_000),
+  // CRÍTICO en producción: debe ser la URL pública de la app (https://eli.ngo en Vercel).
+  // Si no se define, cae a localhost → Supabase redirige a http://localhost:3000/?code=...
+  // en vez de a https://eli.ngo/?code=..., rompiendo el flujo de autenticación.
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
 });
 
