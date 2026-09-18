@@ -24,9 +24,11 @@ const description =
   "Tu mentor de estudio para 6º de primaria: te guía paso a paso sin darte nunca la respuesta.";
 const env = getEnv();
 
+const title = "ELI — hagamos la tarea juntos";
+
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
-  title: { default: "ELI — Tutor Nexo", template: "%s · ELI" },
+  title: { default: title, template: "%s · ELI" },
   description,
   applicationName: "ELI",
   keywords: [
@@ -49,28 +51,20 @@ export const metadata: Metadata = {
     "max-video-preview": -1,
   },
   openGraph: {
-    title: "ELI — Tutor Nexo",
+    title,
     description,
     siteName: "ELI",
     locale: "es_ES",
     type: "website",
     url: "/",
-    images: [
-      {
-        url: "/opengraph-image.png",
-        width: 1200,
-        height: 630,
-        alt: "ELI — Tutor Nexo: Tu mentor de estudio para 6º de primaria",
-        type: "image/png",
-      },
-    ],
+    // Sin `images`: app/opengraph-image.tsx (convención de archivo de Next.js) ya
+    // genera y enlaza la imagen automáticamente, con su propio ancho/alto/alt.
   },
   twitter: {
     card: "summary_large_image",
-    title: "ELI — Tutor Nexo",
+    title,
     description,
-    images: ["/opengraph-image.png"],
-    creator: "@ELI_tutorNexo",
+    // Igual que arriba: app/twitter-image.tsx la resuelve sola.
   },
   alternates: {
     canonical: "/",
@@ -91,7 +85,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: "ELI",
-    alternateName: "ELI — Tutor Nexo",
+    alternateName: title,
     description: description,
     url: env.NEXT_PUBLIC_APP_URL,
     applicationCategory: "EducationalApplication",
@@ -100,11 +94,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       "@type": "EducationalAudience",
       educationalRole: "student",
       ageRange: "11-12",
-    },
-    creator: {
-      "@type": "Organization",
-      name: "Tutor Nexo",
-      url: env.NEXT_PUBLIC_APP_URL,
     },
     offers: {
       "@type": "Offer",
