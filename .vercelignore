@@ -1,0 +1,6 @@
+# Documentos internos: no se sirven como parte del sitio estático
+*.md
+.claude
+.kilo
+.github
+.gitattributes
