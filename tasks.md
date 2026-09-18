@@ -305,7 +305,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-000 | M0 | HU | todo | — | 0 | |
 | T-001 | M0 | BE | done | — | 26 | 2026-09-17 · backend (orquestador) · scaffold Next 16 + tooling + `lib/env`, `lib/contracts`, stubs con fallback, landing estática en `public/landing.html` con rewrite de `/`; `pnpm check` verde; push directo a `main` |
 | T-002 | M0 | DO | done | T-001 | 15 | 2026-09-17 · data-ops · PR #3 (auto-merge): workflow `ci` con job `check` (Node 24, pnpm de `packageManager`, `pnpm install --frozen-lockfile`, `pnpm check`, concurrency por rama), `.github/pull_request_template.md`, repo con `allow_auto_merge` y `delete_branch_on_merge`, ruleset `main-protection` (PR obligatorio, check `check` no estricto, sin borrado ni force-push de `main`; sin bypass para admins: si CI se rompe, editar el ruleset en la UI) |
-| T-010 | M1 | BE | todo | T-001 | 9 | |
+| T-010 | M1 | BE | done | T-001 | 9 | 2026-09-17 · backend · PR #4 (auto-merge): `lib/ai/prompt.ts` (`ELI_SYSTEM_PROMPT` literal de `north_star.md` + `REFUSAL_MESSAGE`; test contra copia literal y contra el documento) y `lib/ai/window.ts` (`slidingWindow`: últimos N pares completos + pregunta pendiente, empieza siempre por `user`, trata `pairs = 0` y listas cortas, no muta la entrada); sin cambios de contrato ni de env; `pnpm check` verde |
 | T-011 | M1 | BE | todo | T-010 | 8 | |
 | T-012 | M1 | BE | todo | T-011 | 6 | |
 | T-013 | M1 | FE | todo | T-001 | 6 | |
@@ -485,3 +485,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-006 | Evals del prompt con clave real (10 problemas por asignatura, criterio "no da la respuesta") | roadmap M5 |
 | N-007 | Ejemplos few-shot en el prompt de sistema para superar el mínimo cacheable y afinar el tono | roadmap M5 |
 | N-008 | Exigir el job `e2e` en el ruleset de `main` cuando sea estable | T-044 |
+| N-009 | El driver `merge=union` de `tasks.md` duplica filas adyacentes de la tabla de estado cuando dos agentes las cambian a la vez (al rebasar T-010 sobre T-002 quedaron 4 filas en vez de 2). Propuesta: añadir al paso 6 del protocolo "tras el rebase, comprueba que no hay IDs repetidos en la sección 7 y elimina las versiones viejas" | T-010 |
