@@ -323,7 +323,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-022 | M2 | DO | todo | T-020 | 1 | |
 | T-023 | M2 | BE | todo | T-012, T-021, T-022 | 0 | |
 | T-024 | M2 | FE | todo | T-015, T-025 | 0 | |
-| T-025 | M2 | BE | todo | T-020 | 1 | |
+| T-025 | M2 | BE | done | T-020 | 1 | 2026-09-18 · backend · `app/api/sessions/route.ts` (GET /api/sessions, lee cookie `eli_anon`, devuelve sesiones del usuario anónimo o lista vacía si sin cookie), `app/api/sessions/[id]/route.ts` (GET /api/sessions/:id, valida UUID, devuelve sesión con historial o 404 si no pertenece al usuario), `tests/api/sessions.test.ts` (14 tests contra MemoryRepo: listado, detalle, scoping, orden, seguridad 404); validación zod en ambas rutas; `pnpm check` verde |
 | T-030 | M3 | DO | todo | T-002 | 2 | |
 | T-031 | M3 | FE | todo | T-030 | 0 | |
 | T-032 | M3 | BE | todo | T-030, T-020 | 0 | |
