@@ -111,6 +111,7 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
           messages={chat.messages}
           streaming={streaming}
           thinking={chat.isThinking}
+          model={chat.meta?.model}
           intro={
             chat.messages.length === 0 ? (
               <EmptyState
