@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import type { PersistJob } from "@/lib/contracts/queue";
+import { persistJobSchema } from "@/lib/contracts/queue";
 import { persistJob } from "@/lib/queue/persist";
 import { getEnv } from "@/lib/env";
 
@@ -16,12 +16,16 @@ export const maxDuration = 60;
  */
 async function handler(req: NextRequest) {
   try {
-    // Parse the body
     const body = await req.json();
-    const job: PersistJob = body;
+    const parsed = persistJobSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "invalid_request", message: "Cuerpo inválido", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
 
-    // Persist the job
-    await persistJob(job);
+    await persistJob(parsed.data);
 
     return Response.json({ ok: true }, { status: 200 });
   } catch (error) {
