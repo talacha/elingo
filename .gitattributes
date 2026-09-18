@@ -1,0 +1,2 @@
+# Los agentes editan filas distintas de tasks.md en paralelo; el driver union conserva ambos lados en vez de generar conflictos.
+tasks.md merge=union
