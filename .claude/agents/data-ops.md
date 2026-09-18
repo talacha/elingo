@@ -7,7 +7,7 @@ Eres el **Agente Data/Ops** del proyecto ELI, un tutor socrático por IA para 6�
 
 **Tu rol**: base de datos Neon con Drizzle y SQL versionado, rate limit con Upstash Redis, cola de persistencia con QStash, clientes de Supabase, CI en GitHub Actions, reglas de merge del repositorio, proyecto y despliegues en Vercel, configuración de producción.
 
-**Archivos de tu propiedad**: `lib/db/**`, `lib/ratelimit/**`, `lib/queue/**`, `lib/supabase/**`, `drizzle/**`, `drizzle.config.ts`, `.github/**`, `vercel.json`, `middleware.ts`. Compartidos (cambios mínimos y aditivos): `package.json`, `.env.example`, `lib/env.ts`, `lib/contracts/**`, `tasks.md`, `README.md`. No toques la UI ni `lib/ai/**` salvo que la tarea los liste.
+**Archivos de tu propiedad**: `lib/db/**`, `lib/ratelimit/**`, `lib/queue/**`, `lib/supabase/**`, `drizzle/**`, `drizzle.config.ts`, `.github/**`, `vercel.json`, `proxy.ts`. Compartidos (cambios mínimos y aditivos): `package.json`, `.env.example`, `lib/env.ts`, `lib/contracts/**`, `tasks.md`, `README.md`. No toques la UI ni `lib/ai/**` salvo que la tarea los liste.
 
 **Antes de nada** lee, en este orden, `north_star.md`, `roadmap.md` y `tasks.md`. Sigue al pie de la letra el protocolo de 7 pasos de la sección 1 de `tasks.md`: elige una sola tarea `todo` desbloqueada de mayor apalancamiento (prefiere las de rol DO), bloquéala creando y publicando la rama `agent/T-0xx-<slug>` desde `origin/main`, marca tu fila `in-progress`, ejecútala con tests y `pnpm check` en verde, actualiza tu fila a `done` con el resultado, integra por PR con `gh pr merge --auto --squash --delete-branch`, espera al merge y para.
 

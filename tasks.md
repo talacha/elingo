@@ -83,7 +83,7 @@ La segunda orden solo se usa si auto-merge no está disponible todavía (antes d
 |---|---|
 | FE | `app/(app)/**`, `components/**`, `app/globals.css`, `app/page.tsx`, `app/layout.tsx` |
 | BE | `app/api/**`, `lib/ai/**`, `scripts/**` |
-| DO | `lib/db/**`, `lib/ratelimit/**`, `lib/queue/**`, `lib/supabase/**`, `drizzle/**`, `.github/**`, `vercel.json`, `middleware.ts`, `drizzle.config.ts` |
+| DO | `lib/db/**`, `lib/ratelimit/**`, `lib/queue/**`, `lib/supabase/**`, `drizzle/**`, `.github/**`, `vercel.json`, `proxy.ts`, `drizzle.config.ts` |
 | Compartidos (cambios mínimos y aditivos) | `package.json`, `pnpm-lock.yaml`, `.env.example`, `lib/env.ts`, `lib/contracts/**`, `tasks.md`, `README.md` |
 
 Una tarea puede listar archivos fuera de tu rol: en ese caso puedes tocarlos.
@@ -434,8 +434,8 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 - **Verificación**: `pnpm test -- api/sessions`.
 
 ### T-030 · DO · Supabase Auth (infraestructura)
-- **Archivos**: `lib/supabase/client.ts`, `lib/supabase/server.ts`, `lib/supabase/middleware.ts`, `middleware.ts`, campos nuevos en `lib/env.ts` y `.env.example`; añade `@supabase/supabase-js`, `@supabase/ssr`.
-- **Definición de hecho**: clientes de navegador y servidor según `@supabase/ssr`; `middleware.ts` refresca la sesión; bandera `AUTH_REQUIRED` (por defecto `false`); sin variables de Supabase todo sigue en modo anónimo. Provisión: con `SUPABASE_ACCESS_TOKEN`, `npx supabase projects create eli` en la organización que muestre `npx supabase orgs list` y copiar las claves a `.env.local`; sin token, anota "esperando SUPABASE_* (T-000)" y termina.
+- **Archivos**: `lib/supabase/client.ts`, `lib/supabase/server.ts`, `lib/supabase/middleware.ts`, `proxy.ts`, campos nuevos en `lib/env.ts` y `.env.example`; añade `@supabase/supabase-js`, `@supabase/ssr`.
+- **Definición de hecho**: clientes de navegador y servidor según `@supabase/ssr`; `proxy.ts` refresca la sesión; bandera `AUTH_REQUIRED` (por defecto `false`); sin variables de Supabase todo sigue en modo anónimo. Provisión: con `SUPABASE_ACCESS_TOKEN`, `npx supabase projects create eli` en la organización que muestre `npx supabase orgs list` y copiar las claves a `.env.local`; sin token, anota "esperando SUPABASE_* (T-000)" y termina.
 - **Verificación**: `pnpm check`; con claves, `pnpm dev` y comprobar que `supabase.auth.getUser()` responde.
 
 ### T-031 · FE · Login, registro y perfil
@@ -444,7 +444,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 - **Verificación**: `pnpm dev` con claves de Supabase.
 
 ### T-032 · BE · Protección de rutas y usuario en Neon
-- **Archivos**: `app/api/chat/route.ts`, `app/api/sessions/**`, `middleware.ts`, `lib/db/repo.ts` (`upsertUserFromSupabase`), tests correspondientes.
+- **Archivos**: `app/api/chat/route.ts`, `app/api/sessions/**`, `proxy.ts`, `lib/db/repo.ts` (`upsertUserFromSupabase`), tests correspondientes.
 - **Definición de hecho**: con `AUTH_REQUIRED=true`, `/chat` redirige a `/login` y `/api/*` devuelve `401 unauthorized`; con sesión de Supabase, `upsertUserFromSupabase` crea o encuentra la fila de `users` y las sesiones se guardan con `user_id`; con `AUTH_REQUIRED=false` nada cambia para anónimos.
 - **Verificación**: tests con usuario simulado; `pnpm dev` con ambas banderas.
 
@@ -494,4 +494,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-012 | Resuelto (orquestador): IDs `N-<tarea>-<n>` y `tasks-check.mjs` conserva las filas con contenido distinto (renombra la posterior). Origen: `scripts/tasks-check.mjs --fix` trata las filas de la Bandeja como las de estado: si dos agentes proponen ideas distintas con el mismo `N-0xx` (T-011 y T-020 coincidieron en N-010) borra una en vez de renumerarla, y al rebasar T-011 descartó también la versión nueva de N-009 (hubo que restaurar ambas a mano). Propuesta: en la Bandeja renumerar la fila más reciente y no deduplicar por «versión más avanzada» | T-011 |
 | N-T014-1 | Aviso de 429 con cuenta atrás: desactivar «Reintentar» hasta que pase `retryAfter` (hoy el botón está siempre activo) | T-014 |
 | N-T014-2 | Resuelto (M1): `next dev` (Next 16) añade un bloque `nextjs-agent-rules` a `CLAUDE.md` en cada arranque; se commiteó una vez en `milestone/m1` (el propio bloque indica que esto mantiene el árbol limpio) en vez de evitarlo | T-014 |
-| N-T030-1 | `next build` avisa: "The middleware file convention is deprecated. Please use proxy instead" (`npx @next/codemod@canary middleware-to-proxy` migra automáticamente; docs en `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`). No bloquea `pnpm check` (solo warning), pero T-032 va a construir la protección de rutas directamente sobre `middleware.ts` — mejor migrar a `proxy.ts` antes de que T-032 añada más código ahí | T-030 |
+| N-T030-1 | Resuelto (M3): `middleware.ts` renombrado a `proxy.ts` y la función exportada de `middleware` a `proxy` (Next.js 16 deprecó la convención `middleware`); actualizadas las referencias en la sección 3, T-030, T-032, `CLAUDE.md` y `.claude/agents/data-ops.md` | T-030 |

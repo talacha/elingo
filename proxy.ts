@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { refreshSupabaseSession } from "@/lib/supabase/middleware";
 
 /**
- * Middleware that runs on every request to refresh the Supabase session.
- * Gracefully handles the case where Supabase is not configured.
+ * Proxy (Next.js 16; formerly "middleware") that runs on every request to
+ * refresh the Supabase session. Gracefully handles the case where Supabase
+ * is not configured.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { response } = await refreshSupabaseSession(request);
   return response;
 }
