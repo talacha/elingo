@@ -5,6 +5,7 @@ import {
   CHAT_HEADERS,
   type ChatError,
   type ChatErrorCode,
+  type ChatImage,
   type ChatMessage,
   type ChatRequest,
   type Subject,
@@ -60,7 +61,7 @@ export interface TutorChat {
   getState(): TutorChatState;
   subscribe(listener: () => void): () => void;
   /** Envía un mensaje de la niña. Resuelve al terminar el turno; `false` si se ignoró (vacío o turno en curso). */
-  send(text: string): Promise<boolean>;
+  send(text: string, image?: ChatImage): Promise<boolean>;
   /** Reenvía la última pregunta sin respuesta (tras un error o un «Parar» temprano). */
   retry(): Promise<boolean>;
   /** Detiene el turno en curso conservando lo que ELI haya dicho ya. */
@@ -307,7 +308,7 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     return true;
   };
 
-  const send = async (text: string): Promise<boolean> => {
+  const send = async (text: string, image?: ChatImage): Promise<boolean> => {
     const content = text.trim();
     if (!content || state.status === "streaming") return false;
     // Una pregunta huérfana (sin respuesta por error o «Parar») se sustituye por la nueva:
@@ -319,6 +320,7 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
       role: "user",
       content,
       createdAt: new Date().toISOString(),
+      ...(image ? { image } : {}),
     };
     return run([...base, message]);
   };
@@ -385,7 +387,7 @@ export function useTutorChat(options?: TutorChatOptions) {
     ...state,
     isThinking: isThinking(state),
     canRetry: canRetry(state),
-    send: chat.send,
+    send: (text: string, image?: ChatImage) => chat.send(text, image),
     retry: chat.retry,
     stop: chat.stop,
     setSubject: chat.setSubject,
