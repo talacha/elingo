@@ -107,12 +107,15 @@ const REDIRECT_CHUNKS: readonly string[] = [
   "¿Empezamos?",
 ];
 
+/** T-051: reconoce una imagen adjunta sin desvelar el resultado (el mock nunca "ve" de verdad la foto). */
+const IMAGE_ACK = "**He recibido tu foto.** Aunque aún no la puedo mirar en este modo de pruebas.\n\n";
+
 /** Los chunks de la respuesta, en orden. Determinista: solo depende del último mensaje y la asignatura. */
 export function mockReplyChunks(input: Pick<TutorReplyInput, "messages" | "subject">): string[] {
   const last = input.messages.at(-1);
   if (last?.role === "user" && asksForTheAnswer(last.content)) return [...REDIRECT_CHUNKS];
   const guide = GUIDES[input.subject ?? "general"];
-  return [
+  const chunks = [
     "¡Vamos a por ello! Lo resolvemos **paso a paso**, sin saltarnos nada.\n\n",
     guide.focus,
     guide.questions,
@@ -120,6 +123,7 @@ export function mockReplyChunks(input: Pick<TutorReplyInput, "messages" | "subje
     "Escríbeme solo el **primer paso** que darías y lo revisamos juntos.\n\n",
     "**Tú puedes.** Estoy aquí para darte pistas, no para hacerlo por ti.",
   ];
+  return last?.images?.length ? [IMAGE_ACK, ...chunks] : chunks;
 }
 
 /** Estimación grosera (~4 caracteres por token), suficiente para probar logs y presupuestos. */

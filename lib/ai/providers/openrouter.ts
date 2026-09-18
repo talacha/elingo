@@ -11,10 +11,19 @@ import type {
   TutorProvider,
   TutorReplyInput,
   TutorReplyResult,
+  TutorTurn,
   TutorUsage,
 } from "@/lib/contracts/ai";
 import type { Subject } from "@/lib/contracts/chat";
 import { getEnv, type Env } from "@/lib/env";
+
+/** Parte de contenido multimodal (formato compatible OpenAI que usa OpenRouter). */
+interface OpenRouterContentPart {
+  type: "text" | "image_url";
+  text?: string;
+  image_url?: { url: string };
+}
+type OpenRouterContent = string | OpenRouterContentPart[];
 
 export interface OpenRouterProviderOptions {
   env?: Env;
@@ -45,10 +54,17 @@ interface OpenRouterSSEEvent {
  * - Encabezados: `Authorization: Bearer ${OPENROUTER_API_KEY}`, `HTTP-Referer`, `X-Title`.
  * - Mapea `finish_reason` a `end_turn | max_tokens | refusal | error`.
  * - Implementa el mismo contrato `TutorProvider` que Anthropic y Mock.
+ * - T-051: si el turno más reciente trae imágenes, la petición usa `visionModel`
+ *   (`OPENROUTER_VISION_MODEL`) en vez de `model`, con `content` como array multimodal
+ *   (`image_url` con `data:` URI + `text`). Con `fallbackModel` configurado, un fallo *antes*
+ *   de emitir ningún texto (`!handle.emitted`) reintenta una vez con ese modelo — nunca en
+ *   peticiones con imagen: el modelo de respaldo no tiene por qué ser multimodal.
  */
 export class OpenRouterProvider implements TutorProvider {
   readonly name = "openrouter" as const;
   readonly model: string;
+  readonly visionModel: string;
+  private readonly fallbackModel: string | undefined;
   private readonly apiKey: string;
   private readonly appUrl: string;
   private readonly maxOutputTokens: number;
@@ -56,21 +72,42 @@ export class OpenRouterProvider implements TutorProvider {
   constructor(options: OpenRouterProviderOptions = {}) {
     const env = options.env ?? getEnv();
     this.model = env.OPENROUTER_MODEL;
+    this.visionModel = env.OPENROUTER_VISION_MODEL;
+    this.fallbackModel = env.OPENROUTER_FALLBACK_MODEL;
     this.apiKey = env.OPENROUTER_API_KEY || "";
     this.appUrl = env.NEXT_PUBLIC_APP_URL;
     this.maxOutputTokens = env.AI_MAX_OUTPUT_TOKENS;
   }
 
   async reply(input: TutorReplyInput): Promise<TutorReplyResult> {
+    const hasImage = inputHasImage(input);
     return createTutorStream({
       provider: this.name,
-      model: this.model,
+      model: hasImage ? this.visionModel : this.model,
       signal: input.signal,
-      produce: (handle) => this.produce(input, handle),
+      produce: (handle) => this.produce(input, handle, hasImage),
     });
   }
 
-  private async produce(input: TutorReplyInput, handle: TutorStreamHandle): Promise<TutorOutcome> {
+  private async produce(
+    input: TutorReplyInput,
+    handle: TutorStreamHandle,
+    hasImage: boolean,
+  ): Promise<TutorOutcome> {
+    const primaryModel = hasImage ? this.visionModel : this.model;
+    const outcome = await this.attempt(primaryModel, input, handle);
+    const canFallback = !hasImage && this.fallbackModel && this.fallbackModel !== primaryModel;
+    if (outcome.stopReason === "error" && !handle.emitted && canFallback) {
+      return this.attempt(this.fallbackModel as string, input, handle);
+    }
+    return outcome;
+  }
+
+  private async attempt(
+    model: string,
+    input: TutorReplyInput,
+    handle: TutorStreamHandle,
+  ): Promise<TutorOutcome> {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -81,7 +118,7 @@ export class OpenRouterProvider implements TutorProvider {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: this.model,
+          model,
           max_tokens: this.maxOutputTokens,
           stream: true,
           messages: buildMessages(input.subject, input.messages),
@@ -100,7 +137,6 @@ export class OpenRouterProvider implements TutorProvider {
       }
 
       let usage: TutorUsage = { ...ZERO_USAGE };
-      const model = this.model;
       let stopReason: StopReason = "end_turn";
       let error: unknown | undefined;
 
@@ -148,21 +184,23 @@ export class OpenRouterProvider implements TutorProvider {
 
       return { usage, model, stopReason, error };
     } catch (error) {
-      return { usage: { ...ZERO_USAGE }, model: this.model, stopReason: "error", error };
+      return { usage: { ...ZERO_USAGE }, model, stopReason: "error", error };
     }
   }
 }
 
+function inputHasImage(input: Pick<TutorReplyInput, "messages">): boolean {
+  return Boolean(input.messages.at(-1)?.images?.length);
+}
+
 /**
  * Construye los mensajes con el prompt de sistema literal cacheado y pista de asignatura.
+ * Un turno con imágenes se envía como `content` multimodal (formato compatible OpenAI).
  */
-function buildMessages(
-  subject: Subject | undefined,
-  turns: Array<{ role: "user" | "assistant"; content: string }>,
-) {
+function buildMessages(subject: Subject | undefined, turns: readonly TutorTurn[]) {
   const messages: Array<{
     role: "user" | "assistant" | "system";
-    content: string;
+    content: OpenRouterContent;
   }> = [
     {
       role: "system",
@@ -178,14 +216,25 @@ function buildMessages(
     });
   }
 
-  messages.push(
-    ...turns.map(({ role, content }) => ({
-      role,
-      content,
-    })),
-  );
+  messages.push(...turns.map(toOpenRouterMessage));
 
   return messages;
+}
+
+function toOpenRouterMessage(turn: TutorTurn): { role: "user" | "assistant"; content: OpenRouterContent } {
+  if (!turn.images?.length) return { role: turn.role, content: turn.content };
+  return {
+    role: turn.role,
+    content: [
+      { type: "text", text: turn.content },
+      ...turn.images.map(
+        (image): OpenRouterContentPart => ({
+          type: "image_url",
+          image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+        }),
+      ),
+    ],
+  };
 }
 
 /**

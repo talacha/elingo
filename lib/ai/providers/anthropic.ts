@@ -12,10 +12,21 @@ import type {
   TutorProvider,
   TutorReplyInput,
   TutorReplyResult,
+  TutorTurn,
   TutorUsage,
 } from "@/lib/contracts/ai";
-import type { Subject } from "@/lib/contracts/chat";
+import type { ImageMimeType, Subject } from "@/lib/contracts/chat";
 import { getEnv, type Env } from "@/lib/env";
+
+/** Bloque de imagen del formato de contenido de Anthropic (Claude ya es multimodal). */
+interface ImageBlock {
+  type: "image";
+  source: { type: "base64"; media_type: ImageMimeType; data: string };
+}
+interface TextBlock {
+  type: "text";
+  text: string;
+}
 
 /** Beta del SDK que activa `fallbacks`: modelo de respaldo cuando el principal rehúsa. */
 export const FALLBACK_BETA = "server-side-fallback-2026-06-01";
@@ -122,7 +133,9 @@ export class AnthropicProvider implements TutorProvider {
       max_tokens: this.maxOutputTokens,
       system: buildSystem(input.subject),
       output_config: { effort: this.effort },
-      messages: input.messages.map(({ role, content }) => ({ role, content })),
+      // T-051: Claude ya es multimodal con el mismo modelo, sin `visionModel` en este proveedor;
+      // un turno con imágenes manda el bloque `image` antes del texto (orden recomendado por Anthropic).
+      messages: input.messages.map(toAnthropicMessage),
     };
     if (this.fallbackModel) {
       return this.client.beta.messages.stream(
@@ -132,6 +145,24 @@ export class AnthropicProvider implements TutorProvider {
     }
     return this.client.messages.stream(base, { signal });
   }
+}
+
+function toAnthropicMessage(
+  turn: TutorTurn,
+): { role: "user" | "assistant"; content: string | Array<ImageBlock | TextBlock> } {
+  if (!turn.images?.length) return { role: turn.role, content: turn.content };
+  return {
+    role: turn.role,
+    content: [
+      ...turn.images.map(
+        (image): ImageBlock => ({
+          type: "image",
+          source: { type: "base64", media_type: image.mediaType, data: image.data },
+        }),
+      ),
+      { type: "text", text: turn.content },
+    ],
+  };
 }
 
 /**

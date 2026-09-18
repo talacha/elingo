@@ -42,7 +42,14 @@ const input: TutorReplyInput = {
   ],
 };
 
-const ENV_KEYS = ["OPENROUTER_API_KEY", "OPENROUTER_MODEL", "AI_MAX_OUTPUT_TOKENS", "NEXT_PUBLIC_APP_URL"];
+const ENV_KEYS = [
+  "OPENROUTER_API_KEY",
+  "OPENROUTER_MODEL",
+  "OPENROUTER_VISION_MODEL",
+  "OPENROUTER_FALLBACK_MODEL",
+  "AI_MAX_OUTPUT_TOKENS",
+  "NEXT_PUBLIC_APP_URL",
+];
 
 describe("OpenRouterProvider", () => {
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -64,7 +71,7 @@ describe("OpenRouterProvider", () => {
   it("se identifica como openrouter y usa el modelo del entorno", () => {
     const provider = new OpenRouterProvider({ env: getEnv() });
     expect(provider.name).toBe("openrouter");
-    expect(provider.model).toBe("anthropic/claude-fable-5.1");
+    expect(provider.model).toBe("deepseek/deepseek-v4-flash-0731:free");
   });
 
   it("hace una petición POST a openrouter.ai con modelo, max_tokens, stream y usage", async () => {
@@ -90,7 +97,7 @@ describe("OpenRouterProvider", () => {
 
     const body = JSON.parse(call[1]?.body as string);
     expect(body).toMatchObject({
-      model: "anthropic/claude-fable-5.1",
+      model: "deepseek/deepseek-v4-flash-0731:free",
       max_tokens: 1024,
       stream: true,
       usage: { include: true },
@@ -138,7 +145,7 @@ describe("OpenRouterProvider", () => {
 
     const result = await done;
     expect(result.stopReason).toBe("end_turn");
-    expect(result.model).toBe("anthropic/claude-fable-5.1");
+    expect(result.model).toBe("deepseek/deepseek-v4-flash-0731:free");
   });
 
   it("captura usage del evento SSE y lo devuelve en done", async () => {
@@ -335,6 +342,123 @@ describe("OpenRouterProvider", () => {
 
     const result = await done;
     expect(result.stopReason).toBe("end_turn");
+  });
+
+  it("T-051: identifica el modelo de visión del entorno", () => {
+    const provider = new OpenRouterProvider({ env: getEnv() });
+    expect(provider.visionModel).toBe("inclusionai/ling-3.0-flash-vl:free");
+  });
+
+  it("T-051: con imagen en el último turno, usa OPENROUTER_VISION_MODEL y content multimodal", async () => {
+    process.env.OPENROUTER_API_KEY = "test-key";
+    resetEnvCache();
+    fetchSpy.mockResolvedValue(
+      createSSEResponse(['data: {"choices": [{"delta": {"content": "Veo la foto"}}]}']),
+    );
+
+    const withImage: TutorReplyInput = {
+      ...input,
+      messages: [
+        ...input.messages.slice(0, -1),
+        {
+          role: "user",
+          content: "me trabé en el denominador",
+          images: [{ mediaType: "image/png", data: "ZmFrZQ==" }],
+        },
+      ],
+    };
+    const provider = new OpenRouterProvider();
+    const { stream, done } = await provider.reply(withImage);
+    expect(await readAll(stream)).toBe("Veo la foto");
+    expect((await done).model).toBe("inclusionai/ling-3.0-flash-vl:free");
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(body.model).toBe("inclusionai/ling-3.0-flash-vl:free");
+    expect(body.messages.at(-1)).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "me trabé en el denominador" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,ZmFrZQ==" } },
+      ],
+    });
+    // Los turnos sin imagen siguen siendo texto plano.
+    expect(body.messages[1]).toEqual({ role: "user", content: input.messages[0].content });
+  });
+
+  it("T-051: con OPENROUTER_FALLBACK_MODEL, reintenta una vez si el modelo principal falla antes de emitir texto", async () => {
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.OPENROUTER_FALLBACK_MODEL = "inclusionai/ling-3.0-flash:free";
+    resetEnvCache();
+
+    fetchSpy
+      .mockResolvedValueOnce(new Response("Rate limited", { status: 429 }))
+      .mockResolvedValueOnce(createSSEResponse(['data: {"choices": [{"delta": {"content": "ok"}}]}']));
+
+    const provider = new OpenRouterProvider();
+    const { stream, done } = await provider.reply(input);
+    expect(await readAll(stream)).toBe("ok");
+    expect((await done).model).toBe("inclusionai/ling-3.0-flash:free");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    const firstBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    const secondBody = JSON.parse(fetchSpy.mock.calls[1][1]?.body as string);
+    expect(firstBody.model).toBe("deepseek/deepseek-v4-flash-0731:free");
+    expect(secondBody.model).toBe("inclusionai/ling-3.0-flash:free");
+    // El primer intento falla en silencio y se reintenta; solo un fallo final se registra/avisa.
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("T-051: no reintenta con fallback si ya se había emitido texto antes del fallo", async () => {
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.OPENROUTER_FALLBACK_MODEL = "inclusionai/ling-3.0-flash:free";
+    resetEnvCache();
+
+    // `pull` entrega el primer chunk y solo falla en la SEGUNDA lectura: `enqueue` seguido de
+    // `error` en el mismo `start` descartaría el chunk (el stream quedaría en error antes de leerse).
+    let delivered = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!delivered) {
+          delivered = true;
+          controller.enqueue(
+            new TextEncoder().encode('data: {"choices": [{"delta": {"content": "Vamos"}}]}\n'),
+          );
+          return;
+        }
+        controller.error(new Error("conexión cortada"));
+      },
+    });
+    fetchSpy.mockResolvedValue(new Response(body, { status: 200 }));
+
+    const provider = new OpenRouterProvider();
+    const { stream, done } = await provider.reply(input);
+    expect(await readAll(stream)).toContain("Vamos");
+    expect((await done).stopReason).toBe("error");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("T-051: no reintenta con fallback cuando la petición con imagen falla (el respaldo puede no ser multimodal)", async () => {
+    process.env.OPENROUTER_API_KEY = "test-key";
+    process.env.OPENROUTER_FALLBACK_MODEL = "inclusionai/ling-3.0-flash:free";
+    resetEnvCache();
+    fetchSpy.mockResolvedValue(new Response("Rate limited", { status: 429 }));
+
+    const withImage: TutorReplyInput = {
+      ...input,
+      messages: [
+        ...input.messages.slice(0, -1),
+        {
+          role: "user",
+          content: "mira mi foto",
+          images: [{ mediaType: "image/png", data: "ZmFrZQ==" }],
+        },
+      ],
+    };
+    const provider = new OpenRouterProvider();
+    const { stream, done } = await provider.reply(withImage);
+    await readAll(stream);
+    await done;
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("con finalize_reason null, mapea a end_turn", async () => {
