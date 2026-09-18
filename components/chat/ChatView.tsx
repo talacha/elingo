@@ -1,12 +1,15 @@
 "use client";
 
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import type { SessionDetailResponse } from "@/lib/contracts/sessions";
 import { EliMark } from "@/components/landing/EliMark";
 import { Button } from "@/components/ui/Button";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
 import { SubjectChips } from "./SubjectChips";
 import { EmptyState } from "./EmptyState";
+import { SessionList } from "./SessionList";
 import { useTutorChat, type TutorChatError } from "./useTutorChat";
 
 function ErrorNotice({
@@ -33,10 +36,24 @@ function ErrorNotice({
   );
 }
 
-export function ChatView() {
+interface ChatViewProps {
+  initialSession?: SessionDetailResponse;
+}
+
+export function ChatView({ initialSession }: ChatViewProps = {}) {
   const chat = useTutorChat();
   const streaming = chat.status === "streaming";
   const retry = () => void chat.retry();
+  const [showSessions, setShowSessions] = useState(false);
+  const loadedSessionIdRef = useRef<string | null>(null);
+
+  // Load initial session messages if provided
+  useEffect(() => {
+    if (initialSession && loadedSessionIdRef.current !== initialSession.session.id) {
+      chat.loadMessages(initialSession.messages, initialSession.session.subject ?? undefined);
+      loadedSessionIdRef.current = initialSession.session.id;
+    }
+  }, [initialSession, chat]);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -53,25 +70,51 @@ export function ChatView() {
           <span aria-hidden="true" className="size-2.5 rounded-full bg-leaf" />
           Plática con ELI
         </h1>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setShowSessions(!showSessions)}>
+            Mis conversaciones
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              chat.newSession();
+              setShowSessions(false);
+            }}
+          >
+            Nueva conversación
+          </Button>
+        </div>
       </header>
 
-      <MessageList
-        className="min-h-0 flex-1"
-        messages={chat.messages}
-        streaming={streaming}
-        thinking={chat.isThinking}
-        intro={
-          chat.messages.length === 0 ? (
-            <EmptyState
-              onSelectPrompt={(prompt, subject) => {
-                chat.setSubject(subject);
-                void chat.send(prompt);
-              }}
-              disabled={streaming}
-            />
-          ) : null
-        }
-      />
+      <div className="flex min-h-0 flex-1">
+        <MessageList
+          className="min-h-0 flex-1"
+          messages={chat.messages}
+          streaming={streaming}
+          thinking={chat.isThinking}
+          intro={
+            chat.messages.length === 0 ? (
+              <EmptyState
+                onSelectPrompt={(prompt, subject) => {
+                  chat.setSubject(subject);
+                  void chat.send(prompt);
+                }}
+                disabled={streaming}
+              />
+            ) : null
+          }
+        />
+
+        {/* Sesiones drawer */}
+        {showSessions && (
+          <aside className="w-80 border-l border-line bg-canvas overflow-y-auto">
+            <div className="p-4">
+              <h2 className="m-0 mb-4 font-semibold text-ink">Mis conversaciones</h2>
+              <SessionList onSessionClick={() => setShowSessions(false)} />
+            </div>
+          </aside>
+        )}
+      </div>
 
       <div className="border-t border-line bg-canvas px-gutter pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         <div className="mx-auto w-full max-w-3xl space-y-3">
