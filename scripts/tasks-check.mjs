@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const PRECEDENCE = { done: 4, blocked: 3, "in-progress": 2, todo: 1, new: 0 };
-const ROW = /^\| (T-\d{3}|N-\d{3}) \|/;
+const ROW = /^\| (T-\d{3}|N-[A-Za-z0-9-]+) \|/;
 const PIPE = /(?<!\\)\|/;
 
 function cellsOf(line) {
@@ -21,12 +21,15 @@ function rank(status) {
   return PRECEDENCE[status] ?? -1;
 }
 
-/** Analiza el texto: IDs repetidos, dependencias rotas y versión reparada. */
+/** Analiza el texto: IDs repetidos, colisiones de la Bandeja, dependencias rotas y versión reparada. */
 export function analyze(text) {
   const lines = text.split("\n");
   const chosen = new Map();
   const drop = new Set();
+  const rename = new Map();
+  const suffix = new Map();
   const duplicates = [];
+  const collisions = [];
 
   lines.forEach((line, i) => {
     const m = ROW.exec(line);
@@ -37,8 +40,22 @@ export function analyze(text) {
       chosen.set(id, i);
       return;
     }
-    duplicates.push(id);
     const prev = lines[prevIdx];
+    if (id.startsWith("N-")) {
+      if (line.trim() === prev.trim()) {
+        // Copia exacta que deja merge=union: sobra.
+        drop.add(i);
+        duplicates.push(id);
+        return;
+      }
+      // Dos agentes eligieron el mismo ID para ideas distintas: se conservan ambas y la posterior se renombra.
+      const n = (suffix.get(id) ?? 0) + 1;
+      suffix.set(id, n);
+      rename.set(i, `${id}-${String.fromCharCode(97 + n)}`);
+      collisions.push(id);
+      return;
+    }
+    duplicates.push(id);
     const a = rank(statusOf(id, line));
     const b = rank(statusOf(id, prev));
     const keepNew = a > b || (a === b && line.length > prev.length);
@@ -66,11 +83,17 @@ export function analyze(text) {
     }
   }
 
+  const fixed = lines
+    .map((line, i) => (rename.has(i) ? line.replace(ROW, `| ${rename.get(i)} |`) : line))
+    .filter((_, i) => !drop.has(i))
+    .join("\n");
+
   return {
     duplicates: [...new Set(duplicates)],
+    collisions: [...new Set(collisions)],
     problems,
-    changed: drop.size > 0,
-    fixed: lines.filter((_, i) => !drop.has(i)).join("\n"),
+    changed: drop.size > 0 || rename.size > 0,
+    fixed,
   };
 }
 
@@ -82,12 +105,15 @@ if (invokedDirectly) {
   const file = process.argv.slice(2).find((a) => a.endsWith(".md")) ?? "tasks.md";
   const result = analyze(readFileSync(file, "utf8"));
   if (result.duplicates.length) console.log(`IDs repetidos: ${result.duplicates.join(", ")}`);
+  if (result.collisions.length)
+    console.log(`Bandeja: mismo ID con contenido distinto: ${result.collisions.join(", ")}`);
   for (const p of result.problems) console.log(`Problema: ${p}`);
   if (fix && result.changed) {
     writeFileSync(file, result.fixed);
-    console.log(`${file} reparado: ${result.duplicates.length} ID(s) deduplicados`);
+    console.log(`${file} reparado (duplicados eliminados, colisiones renombradas)`);
   }
-  const ok = result.problems.length === 0 && (fix || result.duplicates.length === 0);
+  const clean = result.duplicates.length === 0 && result.collisions.length === 0;
+  const ok = result.problems.length === 0 && (fix || clean);
   if (ok) console.log(`${file}: OK`);
   process.exit(ok ? 0 : 1);
 }

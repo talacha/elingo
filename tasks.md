@@ -39,7 +39,7 @@ Si no hay candidatas: informa "sin tareas desbloqueadas para <rol>", lista qué 
 
 ### Paso 5 — Actualizar tasks.md
 - Tu fila: estado `done` y **Resultado** en una línea (qué se hizo, número de PR, URL de preview si aplica).
-- Trabajo descubierto fuera del alcance: añade una fila en la **Bandeja** con estado `new`. Nunca amplíes el alcance en silencio.
+- Trabajo descubierto fuera del alcance: añade una fila en la **Bandeja** con ID `N-<tu tarea>-<n>` (por ejemplo `N-T011-1`), nunca un número correlativo: dos agentes eligen el mismo a la vez. Nunca amplíes el alcance en silencio.
 - Si no puedes terminar: estado `blocked` y el motivo en **Resultado**.
 
 ### Paso 6 — Integrar
@@ -476,7 +476,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 ## 9. Bandeja (estado `new`)
 
-El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y dependencias. Los agentes añaden filas aquí, nunca las promueven.
+El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y dependencias. Los agentes añaden filas aquí, nunca las promueven. ID de las filas nuevas: `N-<tarea de origen>-<n>` (por ejemplo `N-T011-1`); las filas históricas conservan `N-0xx`.
 
 | ID | Propuesta | Origen |
 |---|---|---|
@@ -491,4 +491,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-009 | Resuelto por el orquestador: `scripts/tasks-check.mjs --fix` en el paso 6 y `tests/tasks.test.ts` en CI. Origen: `merge=union` duplicaba filas adyacentes de la tabla de estado al rebasar T-010 sobre T-002 | T-010 |
 | N-010 | La integración de Neon en Vercel instala sus variables con prefijo `eli_`; `DATABASE_URL` es hoy una copia manual de `eli_DATABASE_URL` y no seguiría una rotación de credenciales. Quitar el prefijo en la integración (o hacer que el código acepte `eli_DATABASE_URL`) | T-020 |
 | N-011 | `StopReason` (contrato 6.2) no distingue una petición cancelada por la alumna (abort del cliente) de un fallo del proveedor: ambas llegan como `error`. Valorar añadir `"aborted"` cuando T-017 defina el log y T-042 el presupuesto, para no contar cancelaciones como errores | T-011 |
-| N-012 | `scripts/tasks-check.mjs --fix` trata las filas de la Bandeja como las de estado: si dos agentes proponen ideas distintas con el mismo `N-0xx` (T-011 y T-020 coincidieron en N-010) borra una en vez de renumerarla, y al rebasar T-011 descartó también la versión nueva de N-009 (hubo que restaurar ambas a mano). Propuesta: en la Bandeja renumerar la fila más reciente y no deduplicar por «versión más avanzada» | T-011 |
+| N-012 | Resuelto (orquestador): IDs `N-<tarea>-<n>` y `tasks-check.mjs` conserva las filas con contenido distinto (renombra la posterior). Origen: `scripts/tasks-check.mjs --fix` trata las filas de la Bandeja como las de estado: si dos agentes proponen ideas distintas con el mismo `N-0xx` (T-011 y T-020 coincidieron en N-010) borra una en vez de renumerarla, y al rebasar T-011 descartó también la versión nueva de N-009 (hubo que restaurar ambas a mano). Propuesta: en la Bandeja renumerar la fila más reciente y no deduplicar por «versión más avanzada» | T-011 |
