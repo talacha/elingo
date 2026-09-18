@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ChatPreview } from "@/components/landing/ChatPreview";
 import { EliMark } from "@/components/landing/EliMark";
 import { EliMascot } from "@/components/landing/EliMascot";
+import { SessionButton } from "@/components/auth/SessionButton";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
@@ -116,9 +117,12 @@ export default function Home() {
           <EliMark className="size-[30px]" />
           ELI
         </Link>
-        <Button href="#adultos" variant="secondary">
-          Para mamás y papás
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button href="#adultos" variant="secondary">
+            Para mamás y papás
+          </Button>
+          <SessionButton />
+        </div>
       </header>
 
       <main id="inicio" className="grid gap-section">

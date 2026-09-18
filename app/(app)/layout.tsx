@@ -5,8 +5,8 @@ import { SessionButton } from "@/components/auth/SessionButton";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-line bg-surface">
+    <div className="flex h-dvh flex-col">
+      <header className="flex flex-shrink-0 items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-line bg-surface">
         <Link href="/chat" className="flex items-center gap-2 hover:opacity-80">
           <div className="w-8 h-8 flex-shrink-0">
             <EliMark />
@@ -21,7 +21,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <SessionButton />
       </header>
 
-      <main className="flex-1 p-4 sm:p-6">{children}</main>
+      <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
     </div>
   );
 }

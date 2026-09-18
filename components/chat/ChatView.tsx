@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import Link from "next/link";
 import type { SessionDetailResponse } from "@/lib/contracts/sessions";
-import { EliMark } from "@/components/landing/EliMark";
 import { Button } from "@/components/ui/Button";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
@@ -56,16 +54,8 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
   }, [initialSession, chat]);
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-line bg-canvas px-gutter py-3">
-        <Link
-          href="/"
-          aria-label="ELI, volver al inicio"
-          className="inline-flex items-center gap-2.5 font-display text-2xl font-bold tracking-wider text-ink"
-        >
-          <EliMark className="size-[30px]" />
-          ELI
-        </Link>
         <h1 className="m-0 flex items-center gap-2 font-display text-[0.95rem] font-semibold text-ink-soft">
           <span aria-hidden="true" className="size-2.5 rounded-full bg-leaf" />
           Plática con ELI
