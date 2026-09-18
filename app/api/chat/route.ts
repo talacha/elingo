@@ -3,7 +3,6 @@ import { chatRequestSchema } from "@/lib/contracts/chat";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
-import { getEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,7 +39,6 @@ export async function POST(req: NextRequest) {
     const { stream, done } = await streamTutorReply({ sessionId, messages, subject });
 
     // Prepare response headers
-    const env = getEnv();
     const response = new Response(stream, {
       status: 200,
       headers: {
