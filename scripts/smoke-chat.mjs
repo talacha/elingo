@@ -153,6 +153,7 @@ async function testTrapChat() {
 
 async function main() {
   let serverProcess = null;
+  let exitCode = 0;
 
   try {
     // Start server if not using external BASE_URL
@@ -165,6 +166,7 @@ async function main() {
           NODE_ENV: "development",
         },
         stdio: ["ignore", "pipe", "pipe"],
+        detached: true, // own process group, so we can kill the whole next-dev/next-server tree on cleanup
       });
 
       // Show server output for debugging
@@ -187,14 +189,16 @@ async function main() {
       const ready = await waitForServer();
       if (!ready) {
         console.error("✗ Server failed to start within timeout");
-        process.exit(1);
+        exitCode = 1;
+        return;
       }
     } else {
       console.log(`Using external server at ${BASE_URL}`);
       const ready = await waitForServer();
       if (!ready) {
         console.error(`✗ Server at ${BASE_URL} not responding`);
-        process.exit(1);
+        exitCode = 1;
+        return;
       }
     }
 
@@ -217,21 +221,35 @@ async function main() {
 
     if (!test1.success || !test2.success) {
       console.error("\n✗ Smoke tests failed");
-      process.exit(1);
+      exitCode = 1;
+      return;
     }
 
     console.log("\n✓ All smoke tests passed!");
-    process.exit(0);
   } catch (error) {
     console.error("Smoke test error:", error);
-    process.exit(1);
+    exitCode = 1;
   } finally {
-    // Clean up server process if we started it
+    // Clean up server process (and its next-server descendants) if we started it.
+    // `return` inside the try block above still runs this — unlike process.exit(),
+    // which would have terminated the process before finally ever ran.
     if (serverProcess && !EXTERNAL_SERVER) {
       console.log("Shutting down development server...");
-      serverProcess.kill();
+      try {
+        process.kill(-serverProcess.pid, "SIGTERM");
+      } catch {
+        serverProcess.kill("SIGTERM");
+      }
+      await new Promise((r) => setTimeout(r, 500));
+      try {
+        process.kill(-serverProcess.pid, "SIGKILL");
+      } catch {
+        // process group already gone
+      }
     }
   }
+
+  process.exit(exitCode);
 }
 
 main();
