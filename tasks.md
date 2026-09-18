@@ -326,7 +326,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-025 | M2 | BE | done | T-020 | 1 | 2026-09-18 · backend · `app/api/sessions/route.ts` (GET /api/sessions, lee cookie `eli_anon`, devuelve sesiones del usuario anónimo o lista vacía si sin cookie), `app/api/sessions/[id]/route.ts` (GET /api/sessions/:id, valida UUID, devuelve sesión con historial o 404 si no pertenece al usuario), `tests/api/sessions.test.ts` (14 tests contra MemoryRepo: listado, detalle, scoping, orden, seguridad 404); validación zod en ambas rutas; `pnpm check` verde |
 | T-030 | M3 | DO | done | T-002 | 2 | 2026-09-18 · data-ops · infraestructura de Supabase Auth: clientes de navegador/servidor (`@supabase/ssr`), middleware que refresca sesión, bandera `AUTH_REQUIRED` (defecto `false`), fallback graceful sin variables de Supabase; `pnpm check` verde; esperando SUPABASE_* (T-000) para provisión real |
 | T-031 | M3 | FE | todo | T-030 | 0 | |
-| T-032 | M3 | BE | todo | T-030, T-020 | 0 | |
+| T-032 | M3 | BE | done | T-030, T-020 | 0 | 2026-09-18 · backend · puerta de autenticación en proxy.ts (AUTH_REQUIRED): redirige /chat a /login, 401 para /api (excepto jobs/persist); enriquecido /api/chat, /api/sessions/* para manejar user_id de Supabase con fallback a anonId; tests de auth scenarios y proxy gate; pnpm check verde |
 | T-040 | M4 | HU | todo | T-016 | 0 | |
 | T-041 | M4 | DO | todo | T-016 | 1 | |
 | T-042 | M4 | BE | todo | T-017, T-021 | 1 | |
