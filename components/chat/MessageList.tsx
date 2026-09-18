@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode, type UIEvent } from "react";
 import { cn } from "@/components/ui/cn";
 import type { ChatMessage } from "@/lib/contracts/chat";
 import { MessageBubble } from "./MessageBubble";
+import { SystemMessage } from "./SystemMessage";
 import { TypingIndicator } from "./TypingIndicator";
 
 interface MessageListProps {
@@ -12,13 +13,15 @@ interface MessageListProps {
   thinking: boolean;
   /** Se muestra encima de la lista (por ejemplo, la bienvenida cuando aún no hay mensajes). */
   intro?: ReactNode;
+  /** Modelo actual a mostrar en el mensaje de sistema. */
+  model?: string | null;
   className?: string;
 }
 
 /** Si la niña está a menos de esta distancia del final, la lista la sigue mientras ELI escribe. */
 const NEAR_BOTTOM_PX = 120;
 
-export function MessageList({ messages, streaming, thinking, intro, className }: MessageListProps) {
+export function MessageList({ messages, streaming, thinking, intro, model, className }: MessageListProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const seenCount = useRef(0);
@@ -57,6 +60,7 @@ export function MessageList({ messages, streaming, thinking, intro, className }:
           aria-atomic="false"
           className="grid gap-3"
         >
+          {model && <SystemMessage model={model} />}
           {visible.map((message, i) => (
             <MessageBubble
               key={message.id}
