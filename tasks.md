@@ -304,7 +304,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 |---|---|---|---|---|---|---|
 | T-000 | M0 | HU | todo | — | 0 | |
 | T-001 | M0 | BE | done | — | 26 | 2026-09-17 · backend (orquestador) · scaffold Next 16 + tooling + `lib/env`, `lib/contracts`, stubs con fallback, landing estática en `public/landing.html` con rewrite de `/`; `pnpm check` verde; push directo a `main` |
-| T-002 | M0 | DO | todo | T-001 | 15 | |
+| T-002 | M0 | DO | in-progress | T-001 | 15 | in-progress · data-ops · 2026-09-17 |
 | T-010 | M1 | BE | todo | T-001 | 9 | |
 | T-011 | M1 | BE | todo | T-010 | 8 | |
 | T-012 | M1 | BE | todo | T-011 | 6 | |
