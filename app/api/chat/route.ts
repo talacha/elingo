@@ -3,7 +3,8 @@ import { chatRequestSchema } from "@/lib/contracts/chat";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
-import { getEnv } from "@/lib/env";
+import { getEnv, resolveProvider } from "@/lib/env";
+import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,7 +22,20 @@ export async function POST(req: NextRequest) {
     }
 
     const { sessionId, subject, messages } = parsed.data;
-    
+    const env = getEnv();
+
+    // Input cost guard: check last message length
+    const lastMessage = messages.at(-1);
+    if (lastMessage && lastMessage.content.length > env.AI_MAX_INPUT_CHARS) {
+      return Response.json(
+        {
+          error: "invalid_request",
+          message: `Tu mensaje es demasiado largo. Usa menos de ${env.AI_MAX_INPUT_CHARS} caracteres.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Rate limit check
     const key = sessionId;
     const limit = await checkRateLimit(key);
@@ -40,17 +54,23 @@ export async function POST(req: NextRequest) {
     const { stream, done } = await streamTutorReply({ sessionId, messages, subject });
 
     // Prepare response headers
-    const env = getEnv();
+    const provider = resolveProvider(env);
     const response = new Response(stream, {
       status: 200,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "x-session-id": sessionId,
+        "x-provider": provider,
       },
     });
 
-    // Fire-and-forget: persist to DB after streaming completes
+    // Fire-and-forget: persist to DB and log after streaming completes
     done.then((result) => {
+      // Log the chat event (no PII)
+      const logEvent = createChatLogEvent(sessionId, provider, result);
+      logChatEvent(logEvent);
+
+      // Persist the full message history
       void enqueuePersist({
         sessionId,
         subject,

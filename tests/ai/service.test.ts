@@ -4,6 +4,7 @@ import {
   AnthropicProvider,
   getProvider,
   MockProvider,
+  OpenRouterProvider,
   resetProviderCache,
 } from "@/lib/ai/providers";
 import { createTutorStream, ZERO_USAGE } from "@/lib/ai/providers/stream";
@@ -201,11 +202,13 @@ describe("getProvider", () => {
     expect(getProvider()).toBeInstanceOf(MockProvider);
   });
 
-  it("openrouter cae al mock con un aviso hasta T-019", () => {
+  it("openrouter elige OpenRouterProvider con OPENROUTER_API_KEY", () => {
     process.env.OPENROUTER_API_KEY = "sk-or-test";
     resetEnvCache();
-    expect(getProvider()).toBeInstanceOf(MockProvider);
-    expect(warn).toHaveBeenCalledTimes(1);
+    const provider = getProvider();
+    expect(provider).toBeInstanceOf(OpenRouterProvider);
+    expect(provider.name).toBe("openrouter");
+    expect(provider.model).toBe("anthropic/claude-fable-5.1");
   });
 
   it("memoiza la instancia por entorno", () => {
