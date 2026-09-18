@@ -15,9 +15,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "drizzle-orm": "^0.45.2",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -28,6 +32,7 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "prettier": "^3",

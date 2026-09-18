@@ -318,7 +318,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-017 | M1 | BE | todo | T-012 | 2 | |
 | T-018 | M1 | BE | todo | T-012, T-014 | 1 | |
 | T-019 | M1 | BE | todo | T-011 | 0 | |
-| T-020 | M2 | DO | in-progress | T-002 | 5 | in-progress · data-ops · 2026-09-17 |
+| T-020 | M2 | DO | done | T-002 | 5 | 2026-09-17 · data-ops · PR #10: esquema 6.5 en Drizzle (`lib/db/schema.ts`); `drizzle/0000_init.sql` generado con drizzle-kit y aplicado a Neon (`neon-bole-compass`, recurso del Marketplace ya provisionado en el team `elingo`; una sola base para production/preview/development); `NeonRepo` (driver HTTP) y `MemoryRepo` con la misma batería de tests (`tests/db/repo.test.ts`; la parte Neon solo corre con `DATABASE_URL`, 20/20 en verde); `getRepo()` en `lib/db/index.ts`; scripts `db:generate`/`db:migrate`; `DATABASE_URL` dada de alta en Vercel (production, preview, development) como copia de `eli_DATABASE_URL`; en local `vercel env pull .env.local` |
 | T-021 | M2 | DO | todo | T-002 | 3 | |
 | T-022 | M2 | DO | todo | T-020 | 1 | |
 | T-023 | M2 | BE | todo | T-012, T-021, T-022 | 0 | |
@@ -489,3 +489,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-007 | Ejemplos few-shot en el prompt de sistema para superar el mínimo cacheable y afinar el tono | roadmap M5 |
 | N-008 | Exigir el job `e2e` en el ruleset de `main` cuando sea estable | T-044 |
 | N-009 | Resuelto por el orquestador: `scripts/tasks-check.mjs --fix` en el paso 6 y `tests/tasks.test.ts` en CI. Origen: `merge=union` duplicaba filas adyacentes de la tabla de estado al rebasar T-010 sobre T-002 | T-010 |
+| N-010 | La integración de Neon en Vercel instala sus variables con prefijo `eli_`; `DATABASE_URL` es hoy una copia manual de `eli_DATABASE_URL` y no seguiría una rotación de credenciales. Quitar el prefijo en la integración (o hacer que el código acepte `eli_DATABASE_URL`) | T-020 |
