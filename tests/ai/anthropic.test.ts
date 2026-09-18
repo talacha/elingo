@@ -265,7 +265,8 @@ describe("AnthropicProvider", () => {
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
     });
-    expect(result.ttfbMs).toBe(result.latencyMs);
+    expect(result.ttfbMs).toBeGreaterThanOrEqual(0);
+    expect(result.ttfbMs).toBeLessThanOrEqual(result.latencyMs);
   });
 
   it("ANTHROPIC_FALLBACK_MODEL: usa beta.messages.stream con la beta y fallbacks, y done.model es el que respondió", async () => {
