@@ -44,7 +44,9 @@ Si no hay candidatas: informa "sin tareas desbloqueadas para <rol>", lista qué 
 ### Paso 6 — Integrar
 ```bash
 git fetch origin && git rebase origin/main   # .gitattributes: tasks.md merge=union resuelve los apéndices
-pnpm check                                   # obligatorio si el rebase trajo cambios de código
+node scripts/tasks-check.mjs --fix           # union duplica filas adyacentes: conserva la versión más avanzada de cada ID
+git diff --quiet tasks.md || git commit -am "T-0xx: dedupe tasks.md"
+pnpm check                                   # obligatorio si el rebase trajo cambios de código; tests/tasks.test.ts falla si quedan IDs repetidos
 git push --force-with-lease
 gh pr create --title "T-0xx: <título corto>" --body "Cierra T-0xx. <qué se hizo>. Verificación: <comando>."
 gh pr merge --auto --squash --delete-branch || gh pr merge --squash --delete-branch
@@ -485,4 +487,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-006 | Evals del prompt con clave real (10 problemas por asignatura, criterio "no da la respuesta") | roadmap M5 |
 | N-007 | Ejemplos few-shot en el prompt de sistema para superar el mínimo cacheable y afinar el tono | roadmap M5 |
 | N-008 | Exigir el job `e2e` en el ruleset de `main` cuando sea estable | T-044 |
-| N-009 | El driver `merge=union` de `tasks.md` duplica filas adyacentes de la tabla de estado cuando dos agentes las cambian a la vez (al rebasar T-010 sobre T-002 quedaron 4 filas en vez de 2). Propuesta: añadir al paso 6 del protocolo "tras el rebase, comprueba que no hay IDs repetidos en la sección 7 y elimina las versiones viejas" | T-010 |
+| N-009 | Resuelto por el orquestador: `scripts/tasks-check.mjs --fix` en el paso 6 y `tests/tasks.test.ts` en CI. Origen: `merge=union` duplicaba filas adyacentes de la tabla de estado al rebasar T-010 sobre T-002 | T-010 |
