@@ -30,7 +30,7 @@ interface MessageBubbleProps {
 export function MessageBubble({ message, streaming = false }: MessageBubbleProps) {
   if (message.role === "user") {
     return (
-      <li className="flex justify-end">
+      <li className="flex justify-end animate-fade-in motion-reduce:animate-none">
         <p className={cn(bubble, "m-0 max-w-[85%] rounded-br-md bg-kid text-ink whitespace-pre-wrap")}>
           <span className="sr-only">Tú: </span>
           {message.content}
@@ -39,7 +39,7 @@ export function MessageBubble({ message, streaming = false }: MessageBubbleProps
     );
   }
   return (
-    <li className="grid max-w-[92%] grid-cols-[34px_1fr] items-end gap-2.5 justify-self-start">
+    <li className="grid max-w-[92%] grid-cols-[34px_1fr] items-end gap-2.5 justify-self-start animate-fade-in motion-reduce:animate-none">
       <EliAvatar />
       <div
         aria-busy={streaming || undefined}
