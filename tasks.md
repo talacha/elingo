@@ -508,6 +508,9 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-070 | M8 | FE | done | T-054 | 0 | 2026-09-18 · frontend · fix microphone status lingering: `stop()` now sets status to idle immediately instead of relying on async handlers; removed stale status check in mediaRecorder condition; added cleanup on unmount; `pnpm check` green |
 | T-071 | M8 | FE | todo | T-023 | 0 | Mostrar modelo activo en el chat: burbuja de sistema inicial o header con "Modelo: claude-fable-5-1" (o el activo según `/api/health` o env); leer de cabecera `x-model` de `/api/chat` |
 | T-072 | M8 | BE | done | T-067 | 0 | 2026-09-18 · backend · PR #33: nueva sección 6.14 en tasks.md documenta el flujo completo de hot-reload del modelo, caché de proceso (30s TTL), fallbacks graceful (Neon caído, email admin cambiado), auditoría (`updated_by`), y cobertura de tests existentes; validado con `pnpm check` verde (283 tests) |
+| T-070 | M8 | FE | todo | T-054 | 0 | Arreglar bug del micrófono: `onend` quedaba colgada dejando el botón visualmente en "escuchando"; conversión a base64 en bloques de 8KB para grabaciones largas; verificación de permisos (micrófono activado) |
+| T-071 | M8 | FE | in-progress | T-023 | 0 | in-progress · frontend · 2026-09-18 |
+| T-072 | M8 | BE | todo | T-067 | 0 | Documentación: sección 6 de `tasks.md` → 6.14 `admin.ts` con flujo de hot-reload de modelo; verificar que `/api/admin/config` guarda en BD sin corrupciones |
 | T-073 | M8 | FE | todo | T-031, T-065 | 0 | Flujo end-to-end: signup → login → `/parents` (palabra segura, ajustes, informes) → `/chat` (flags aplicados); test de cámara/micrófono ocultos cuando `allowImages`=false/`allowVoice`=false |
 
 ## 8. Detalle de tareas
