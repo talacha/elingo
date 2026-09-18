@@ -40,7 +40,7 @@ Vive en `lib/ai/prompt.ts` como la constante `ELI_SYSTEM_PROMPT`. Si se añaden 
 ## No-objetivos de la v1
 
 - Varios idiomas: solo español.
-- Subir fotos o imágenes de los deberes (queda para M5).
+- Conversación de voz continua en tiempo real (M6 usa voz push-to-talk: pulsar, hablar, soltar; nunca un agente de voz siempre escuchando).
 - Panel docente, notas, informes, comunicación con el colegio.
 - Apps nativas: es una web móvil-first.
 - Gamificación compleja (unas rachas simples quedan para M5).
@@ -83,3 +83,4 @@ Vive en `lib/ai/prompt.ts` como la constante `ELI_SYSTEM_PROMPT`. Si se añaden 
 | 2026-09-17 | pnpm como gestor de paquetes | Instalado, rápido, lockfile estricto, soportado por Vercel |
 | 2026-09-17 | Contratos primero, en `tasks.md` | Permite que Frontend, Backend y Data/Ops trabajen en paralelo contra la misma API |
 | 2026-09-17 | Propiedad de archivos por rol y fallback local para cada servicio externo | Evita conflictos de merge y bloqueos por falta de claves |
+| 2026-09-18 | M6 añade voz e imagen manteniendo el pipeline simple (`voz/imagen → texto/visión → tutor socrático → texto → voz opcional`), navegador nativo o niveles gratuitos por defecto con fallback si falta la clave; ninguna imagen ni audio de la alumna se persiste. `OPENROUTER_MODEL` pasa a `deepseek/deepseek-v4-flash-0731:free` (antes enrutaba a Fable 5.1 vía OpenRouter, duplicando coste sin motivo). El modelo de producción (`ANTHROPIC_API_KEY` activo, `claude-fable-5-1`) no cambia en este PR: es una decisión humana fuera de T-045 — cambiar `ANTHROPIC_MODEL` a `claude-sonnet-5` o `claude-haiku-4-5` (5-10× más barato que Fable 5.1 al mismo proveedor) es un cambio de una variable de entorno, no de código, cuando el humano quiera validarlo | Petición directa del propietario; el bug de "dar la respuesta" es la línea roja también para modelos nuevos, así que no se apuesta la producción a un modelo sin validar primero |
