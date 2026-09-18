@@ -319,7 +319,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-018 | M1 | BE | todo | T-012, T-014 | 1 | |
 | T-019 | M1 | BE | todo | T-011 | 0 | |
 | T-020 | M2 | DO | done | T-002 | 5 | 2026-09-17 · data-ops · PR #10: esquema 6.5 en Drizzle (`lib/db/schema.ts`); `drizzle/0000_init.sql` generado con drizzle-kit y aplicado a Neon (`neon-bole-compass`, recurso del Marketplace ya provisionado en el team `elingo`; una sola base para production/preview/development); `NeonRepo` (driver HTTP) y `MemoryRepo` con la misma batería de tests (`tests/db/repo.test.ts`; la parte Neon solo corre con `DATABASE_URL`, 20/20 en verde); `getRepo()` en `lib/db/index.ts`; scripts `db:generate`/`db:migrate`; `DATABASE_URL` dada de alta en Vercel (production, preview, development) como copia de `eli_DATABASE_URL`; en local `vercel env pull .env.local` |
-| T-021 | M2 | DO | todo | T-002 | 3 | |
+| T-021 | M2 | DO | in-progress | T-002 | 3 | in-progress · data-ops · 2026-09-17 |
 | T-022 | M2 | DO | todo | T-020 | 1 | |
 | T-023 | M2 | BE | todo | T-012, T-021, T-022 | 0 | |
 | T-024 | M2 | FE | todo | T-015, T-025 | 0 | |
