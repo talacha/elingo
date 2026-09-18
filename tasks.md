@@ -508,7 +508,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-070 | M8 | FE | done | T-054 | 0 | 2026-09-18 · frontend · fix microphone status lingering: `stop()` now sets status to idle immediately instead of relying on async handlers; removed stale status check in mediaRecorder condition; added cleanup on unmount; `pnpm check` green |
 | T-072 | M8 | BE | done | T-067 | 0 | 2026-09-18 · backend · PR #33: nueva sección 6.14 en tasks.md documenta el flujo completo de hot-reload del modelo, caché de proceso (30s TTL), fallbacks graceful (Neon caído, email admin cambiado), auditoría (`updated_by`), y cobertura de tests existentes; validado con `pnpm check` verde (283 tests) |
 | T-071 | M8 | FE | done | T-023 | 0 | 2026-09-18 · frontend · PR #xx (pending merge): SystemMessage component displays model at chat start; reads x-model header from `/api/chat` response; shows "Hola, soy ELI. Modelo: <model>" in subtle gray bubble; updates dynamically when admin changes model; tests passing |
-| T-073 | M8 | FE | todo | T-031, T-065 | 0 | Flujo end-to-end: signup → login → `/parents` (palabra segura, ajustes, informes) → `/chat` (flags aplicados); test de cámara/micrófono ocultos cuando `allowImages`=false/`allowVoice`=false |
+| T-073 | M8 | FE | done | T-031, T-065 | 0 | 2026-09-18 · frontend · E2E test con Playwright (`e2e/auth-and-parents.spec.ts`): signup → login → `/parents` (palabra segura, ajustes, flags) → `/chat` (verifica UI oculta botones según `allowImages`/`allowVoice`); graceful degradation sin Supabase; tests contra mock y auth disabled; `pnpm check` verde; PR #36 |
 
 ## 8. Detalle de tareas
 
