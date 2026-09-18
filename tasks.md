@@ -489,4 +489,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-007 | Ejemplos few-shot en el prompt de sistema para superar el mínimo cacheable y afinar el tono | roadmap M5 |
 | N-008 | Exigir el job `e2e` en el ruleset de `main` cuando sea estable | T-044 |
 | N-009 | Resuelto por el orquestador: `scripts/tasks-check.mjs --fix` en el paso 6 y `tests/tasks.test.ts` en CI. Origen: `merge=union` duplicaba filas adyacentes de la tabla de estado al rebasar T-010 sobre T-002 | T-010 |
-| N-009 | La integración de Neon en Vercel instala sus variables con prefijo `eli_`; `DATABASE_URL` es hoy una copia manual de `eli_DATABASE_URL` y no seguiría una rotación de credenciales. Quitar el prefijo en la integración (o hacer que el código acepte `eli_DATABASE_URL`) | T-020 |
+| N-010 | La integración de Neon en Vercel instala sus variables con prefijo `eli_`; `DATABASE_URL` es hoy una copia manual de `eli_DATABASE_URL` y no seguiría una rotación de credenciales. Quitar el prefijo en la integración (o hacer que el código acepte `eli_DATABASE_URL`) | T-020 |
