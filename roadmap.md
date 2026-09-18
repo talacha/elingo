@@ -21,6 +21,7 @@
 | M5 Extras | Valor añadido tras la demo | — | Bandeja de `tasks.md` (estado `new`) |
 | M6 Multimodal | Voz e imagen en el chat, arquitectura simple | PR único fusionado; `/chat` acepta voz e imagen con fallback local | T-050 … T-056 |
 | M7 Familias y administración | Panel de padres con palabra segura, flags por familia, panel de administración | PR único fusionado; `/parents` y `/admin` funcionan y `/chat` respeta los flags | T-060 … T-069 |
+| M8 Calidad y visibilidad | Bugfixes (micrófono), mostrar modelo activo en el chat, verificar admin y auth | PR único fusionado; micrófono funciona, modelo visible en chat, `/admin` operativo, signup/login validados | T-070 … T-074 |
 
 ## M0 — Bootstrap (secuencial)
 
@@ -122,6 +123,20 @@ Historial para padres, selector de asignatura persistente, rachas, foto del prob
 
 **Riesgos**: primera migración de esquema desde T-020; se genera y versiona con `drizzle-kit generate` pero aplicarla a Neon de producción (`pnpm db:migrate` con el `DATABASE_URL` real) es un paso humano, no se ejecuta aquí. El "config de IA en caliente" de T-067 nunca sustituye la restricción de `tasks.md` §4 sobre cambiar el modelo de producción fuera de T-045: es human-in-the-loop por diseño (un admin autenticado decide, no un agente).
 
+## M8 — Calidad y visibilidad (mixto)
+
+**Objetivo**: arreglar bugs encontrados en M7, hacer visible el modelo activo en el chat, verificar que `/admin` y el flujo de signup/login funcionan end-to-end.
+
+| Carril | Tareas |
+|---|---|
+| FE | T-070 arreglar icono de micrófono (bug en `useSpeechInput`) → T-071 mostrar modelo activo en la burbuja de sistema |
+| BE | T-072 verificar y documentar `/api/admin/config` en la sección 6 de `tasks.md` |
+| FE | T-073 flujo end-to-end de signup → login → `/parents` → cambiar ajustes → `/chat` |
+
+**Criterio de salida**: un PR único fusionado con todos los bugfixes; micrófono funciona sin quedarse visualmente en "escuchando"; el modelo actual se muestra en el chat (en la burbuja del sistema inicial o en un header); `/admin` permite cambiar el modelo y se aplica en caliente; signup/login/parents/chat funcionan en secuencia sin errores.
+
+**Riesgos**: mínimos. Son refinamientos sobre código ya testeado en M7. La única novedad es la visibilidad del modelo, que es display-only.
+
 ## Grafo de dependencias
 
 ```mermaid
@@ -165,6 +180,11 @@ graph LR
   T050 --> T055[T-055 imagen FE]
   T052[T-052 transcripción] --> T054[T-054 voz FE]
   T053[T-053 síntesis] --> T056[T-056 escuchar FE]
+  T054 --> T070[T-070 arreglar micrófono]
+  T023 --> T071[T-071 mostrar modelo]
+  T067[T-067 config IA] --> T072[T-072 documentar config]
+  T031 --> T073[T-073 flujo e2e signup]
+  T065[T-065 /parents] --> T073
 ```
 
 ## Cómo ejecutar el enjambre
