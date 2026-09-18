@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Una ejecución por rama: un push nuevo cancela la anterior.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # El nombre del job es el contexto requerido por el ruleset main-protection.
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Sin secretos: el proveedor mock cubre lint, typecheck, test y build.
+      AI_PROVIDER: mock
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      # La versión de pnpm sale del campo packageManager de package.json.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
