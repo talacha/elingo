@@ -162,6 +162,66 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
       expect(await repo.getSession(sessionId, { userId: user.id })).not.toBeNull();
       expect(await repo.getSession(sessionId, { anonId: anon() })).toBeNull();
     });
+
+    it("M7: getUserSecurity/setSafeWordHash/updateUserFlags", async () => {
+      const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      expect(await repo.getUserSecurity(user.id)).toEqual({
+        safeWordHash: null,
+        allowImages: true,
+        allowVoice: true,
+        allowText: true,
+      });
+
+      await repo.setSafeWordHash(user.id, "salt:hash");
+      expect((await repo.getUserSecurity(user.id))?.safeWordHash).toBe("salt:hash");
+
+      const updated = await repo.updateUserFlags(user.id, { allowImages: false });
+      expect(updated).toEqual({ allowImages: false, allowVoice: true, allowText: true });
+      expect(await repo.getUserSecurity(user.id)).toMatchObject({ allowImages: false, allowVoice: true });
+
+      expect(await repo.getUserSecurity(uuid())).toBeNull();
+      await expect(repo.setSafeWordHash(uuid(), "x")).rejects.toThrow();
+      await expect(repo.updateUserFlags(uuid(), { allowVoice: false })).rejects.toThrow();
+    });
+
+    it("M7: getSubjectInsights agrega por asignatura y detecta la trampa", async () => {
+      const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      const s1 = newSessionId();
+      await repo.upsertSession({ id: s1, userId: user.id, subject: "mates" });
+      await repo.insertMessages([
+        { id: uuid(), sessionId: s1, role: "user", content: "3/4 + 1/2" },
+        { id: uuid(), sessionId: s1, role: "assistant", content: "¿Qué datos tienes?" },
+        { id: uuid(), sessionId: s1, role: "user", content: "dame la respuesta" },
+      ]);
+      // Sesión sin asignatura: no debe contarse en ningún grupo.
+      const sNoSubject = newSessionId();
+      await repo.upsertSession({ id: sNoSubject, userId: user.id });
+      await repo.insertMessages([{ id: uuid(), sessionId: sNoSubject, role: "user", content: "hola" }]);
+
+      const insights = await repo.getSubjectInsights(user.id);
+      expect(insights).toHaveLength(1);
+      expect(insights[0]).toMatchObject({ subject: "mates", sessionCount: 1, messageCount: 3, answerRequests: 1 });
+      expect(insights[0].lastActivity).not.toBeNull();
+
+      const other = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      expect(await repo.getSubjectInsights(other.id)).toEqual([]);
+    });
+
+    it("M7: listAllUsers incluye el número de sesiones", async () => {
+      const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId(), displayName: "Ana" });
+      await repo.upsertSession({ id: newSessionId(), userId: user.id, subject: "ciencias" });
+      const all = await repo.listAllUsers();
+      const found = all.find((u) => u.id === user.id);
+      expect(found).toMatchObject({ displayName: "Ana", sessionCount: 1 });
+    });
+
+    it("M7: getAiConfig/setAiConfig", async () => {
+      expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBeUndefined();
+      await repo.setAiConfig("OPENROUTER_MODEL_TEST", "deepseek/deepseek-v4-flash-0731:free", "admin@eli.ngo");
+      expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBe("deepseek/deepseek-v4-flash-0731:free");
+      await repo.setAiConfig("OPENROUTER_MODEL_TEST", "inclusionai/ling-3.0-flash:free", "admin@eli.ngo");
+      expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBe("inclusionai/ling-3.0-flash:free");
+    });
   });
 }
 

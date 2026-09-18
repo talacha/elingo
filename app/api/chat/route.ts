@@ -4,9 +4,9 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { checkBudget, incrementBudget } from "@/lib/ai/budget";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
-import { getEnv, resolveProvider } from "@/lib/env";
+import { getEnv } from "@/lib/env";
 import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
-import { getProvider } from "@/lib/ai/providers";
+import { getProviderWithOverrides } from "@/lib/ai/providers";
 import { modelForRequest, type TutorTurn } from "@/lib/contracts/ai";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRepo } from "@/lib/db";
@@ -128,13 +128,19 @@ export async function POST(req: NextRequest) {
       ...(m.image ? { images: [m.image] } : {}),
     }));
 
+    // T-067: getProviderWithOverrides consulta primero la config en caliente de /admin; sin ningún
+    // override activo, es exactamente getProvider(env) (mismo comportamiento que siempre).
+    const providerInstance = await getProviderWithOverrides(env);
+
     // Stream the AI response
-    const { stream, done } = await streamTutorReply({ sessionId, messages: tutorMessages, subject });
+    const { stream, done } = await streamTutorReply(
+      { sessionId, messages: tutorMessages, subject },
+      { provider: providerInstance },
+    );
 
     // Get the provider and model upfront for the header (modelForRequest: el modelo de visión si
     // el último turno trae imagen y el proveedor lo define; si no, el modelo por defecto).
-    const provider = resolveProvider(env);
-    const providerInstance = getProvider(env);
+    const provider = providerInstance.name;
     const modelName = modelForRequest(providerInstance, { messages: tutorMessages });
 
     // Create streaming response with proper headers

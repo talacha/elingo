@@ -50,6 +50,8 @@ export const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   AUTH_REQUIRED: boolish,
+  /** M7: correos separados por comas con acceso a /admin; vacío por defecto → nadie. */
+  ADMIN_EMAILS: z.string().optional(),
   DAILY_TOKEN_BUDGET: positiveInt(2_000_000),
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
 });
