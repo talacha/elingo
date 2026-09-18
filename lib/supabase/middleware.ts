@@ -12,10 +12,10 @@ export async function refreshSupabaseSession(request: NextRequest) {
 
   // Gracefully degrade if Supabase is not configured
   if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return { response: NextResponse.next(request), supabase: null };
+    return { response: NextResponse.next(), supabase: null };
   }
 
-  const response = NextResponse.next(request);
+  const response = NextResponse.next();
 
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,

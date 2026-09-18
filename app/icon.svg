@@ -1,0 +1,22 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Light mode: sun yellow -->
+  <g>
+    <circle cx="16" cy="11" r="9" fill="#f7b32b" />
+    <rect x="12" y="18" width="8" height="4" fill="#f7b32b" />
+    <rect x="11" y="21" width="10" height="5" rx="2" fill="#7a8797" />
+  </g>
+  <!-- Prefers color scheme: auto-switch via CSS mask or system -->
+  <style>
+    @media (prefers-color-scheme: dark) {
+      circle {
+        fill: #f7c24b;
+      }
+      rect:first-of-type {
+        fill: #f7c24b;
+      }
+      rect:last-of-type {
+        fill: #9aa7b5;
+      }
+    }
+  </style>
+</svg>
