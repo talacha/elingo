@@ -51,9 +51,21 @@ let cached: Env | null = null;
 /** Lee y valida process.env una vez. Las cadenas vacías cuentan como no definidas. */
 export function getEnv(): Env {
   if (cached) return cached;
-  const raw = Object.fromEntries(
-    Object.entries(process.env).filter(([, v]) => v !== undefined && v !== ""),
+  const raw: Record<string, string> = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== "",
+    ),
   );
+  // La integración de Supabase del Marketplace de Vercel instala sus variables con
+  // prefijo ELI_/NEXT_PUBLIC_ELI_ en vez de los nombres planos que lee este esquema
+  // (mismo problema que eli_DATABASE_URL con Neon, ver tasks.md N-010). Caemos a esos
+  // nombres del lado del servidor; lib/supabase/client.ts hace el equivalente para el
+  // navegador, con acceso literal a process.env.NEXT_PUBLIC_* (Next.js solo inlinea
+  // referencias literales, no una lectura dinámica de process.env como esta).
+  raw.NEXT_PUBLIC_SUPABASE_URL ??= raw.NEXT_PUBLIC_ELI_SUPABASE_URL ?? raw.ELI_SUPABASE_URL;
+  raw.NEXT_PUBLIC_SUPABASE_ANON_KEY ??=
+    raw.NEXT_PUBLIC_ELI_SUPABASE_ANON_KEY ?? raw.ELI_SUPABASE_ANON_KEY;
+  raw.SUPABASE_SERVICE_ROLE_KEY ??= raw.ELI_SUPABASE_SERVICE_ROLE_KEY;
   cached = envSchema.parse(raw);
   return cached;
 }
