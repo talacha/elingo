@@ -1,21 +1,209 @@
 @import "tailwindcss";
 
+/*
+  Tokens de diseño de ELI (T-013).
+
+  Los colores viven como variables de tiempo de ejecución en :root para seguir el tema del
+  sistema (claro/oscuro) y se exponen a Tailwind con `@theme inline`, de modo que las
+  utilidades (bg-canvas, text-ink, fill-sun, shadow-card…) cambian con el tema sin variantes
+  `dark:`. Los objetos "de papel" (paper, note) conservan su color en los dos temas, como en
+  la landing original. Contraste AA comprobado: ink e ink-soft sobre canvas y surface,
+  paper-ink sobre sun (botón primario) y paper-soft sobre paper.
+*/
 :root {
-  --background: #fffcf5;
-  --foreground: #1e2a44;
+  color-scheme: light;
+  --canvas: #fffcf5;
+  --grid: rgba(91, 143, 217, 0.14);
+  --ink: #1e2a44;
+  --ink-soft: #5a6478;
+  --surface: #ffffff;
+  --surface-2: #eef2f8;
+  --line: #e1e6ee;
+  --sun: #f7b32b;
+  --sun-deep: #d9960e;
+  --peach: #f4845f;
+  --sky: #5b8fd9;
+  --leaf: #3a9b6c;
+  --kid: #ffefb8;
+  --base: #7a8797;
+  --base-line: #5e6b7a;
+  --shadow: 0 10px 28px rgba(30, 42, 68, 0.1);
+  --shadow-sm: 0 2px 0 rgba(30, 42, 68, 0.08);
+  --paper: #fffdf7;
+  --paper-ink: #2a2620;
+  --paper-soft: #6b6257;
+  --paper-line: rgba(42, 38, 32, 0.22);
+  --note: #ffefb0;
+  --tape: rgba(255, 255, 255, 0.55);
+  --face: #2a2620;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --canvas: #1f3028;
+    --grid: rgba(255, 255, 255, 0.06);
+    --ink: #f1ede2;
+    --ink-soft: #b4bfb6;
+    --surface: #22332c;
+    --surface-2: #2c4038;
+    --line: #3b5148;
+    --sun: #f7c24b;
+    --sun-deep: #e0a62e;
+    --peach: #f79a78;
+    --sky: #8fb4ee;
+    --leaf: #6cc79a;
+    --kid: #4b4022;
+    --base: #9aa7b5;
+    --base-line: #74818f;
+    --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    --shadow-sm: 0 2px 0 rgba(0, 0, 0, 0.3);
+  }
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Colores (siguen el tema del sistema) */
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-sun: var(--sun);
+  --color-sun-deep: var(--sun-deep);
+  --color-peach: var(--peach);
+  --color-sky: var(--sky);
+  --color-leaf: var(--leaf);
+  --color-kid: var(--kid);
+  --color-base: var(--base);
+  --color-base-line: var(--base-line);
+  --color-paper: var(--paper);
+  --color-paper-ink: var(--paper-ink);
+  --color-paper-soft: var(--paper-soft);
+  --color-paper-line: var(--paper-line);
+  --color-note: var(--note);
+  --color-tape: var(--tape);
+  --color-face: var(--face);
+
+  /* Alias semánticos para los componentes de components/ui */
+  --color-primary: var(--sun);
+  --color-primary-deep: var(--sun-deep);
+  --color-on-primary: var(--paper-ink);
+  --color-accent: var(--peach);
+
+  /* Tipografía: Fredoka para títulos y Andika para texto (cargadas con next/font en app/layout.tsx) */
+  --font-display: var(--font-fredoka), "Nunito", "Trebuchet MS", sans-serif;
+  --font-body: var(--font-andika), Verdana, "Segoe UI", sans-serif;
+
+  /* Sombras */
+  --shadow-card: var(--shadow);
+  --shadow-lift: var(--shadow-sm);
+  --shadow-sticker: var(--shadow-sm), var(--shadow);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family:
-    ui-rounded,
-    "Nunito",
-    system-ui,
-    sans-serif;
+@theme {
+  /* Radios grandes y amables */
+  --radius-card: 22px;
+  --radius-bubble: 18px;
+
+  /* Escala tipográfica legible y fluida */
+  --text-display: clamp(2.7rem, 7vw, 4.6rem);
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.01em;
+  --text-title: clamp(1.9rem, 4.2vw, 2.9rem);
+  --text-title--line-height: 1.1;
+  --text-lead: clamp(1.2rem, 2.2vw, 1.45rem);
+  --text-lead--line-height: 1.5;
+
+  /* Ritmo de página */
+  --container-wrap: 1060px;
+  --spacing-gutter: clamp(16px, 5vw, 48px);
+  --spacing-section: clamp(56px, 9vw, 112px);
+  --spacing-card: clamp(24px, 4vw, 44px);
+
+  /* Animaciones de la mascota (los componentes las apagan con motion-reduce) */
+  --animate-breathe: breathe 4.5s ease-in-out infinite;
+  --animate-blink: blink 6s ease-in-out infinite;
+  --animate-wave: wave 3.2s ease-in-out infinite;
+
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.85;
+    }
+    50% {
+      transform: scale(1.07);
+      opacity: 1;
+    }
+  }
+  @keyframes blink {
+    0%,
+    93%,
+    100% {
+      transform: scaleY(1);
+    }
+    96% {
+      transform: scaleY(0.08);
+    }
+  }
+  @keyframes wave {
+    0%,
+    100% {
+      transform: rotate(0);
+    }
+    50% {
+      transform: rotate(-12deg);
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Red de seguridad: nada provoca scroll horizontal (elementos girados, bocadillos) */
+    overflow-x: clip;
+  }
+
+  body {
+    background-color: var(--canvas);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    line-height: 1.6;
+  }
+
+  @media (width >= 48rem) {
+    body {
+      font-size: 1.15rem;
+    }
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: var(--sun);
+    color: var(--paper-ink);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--sky);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
 }
