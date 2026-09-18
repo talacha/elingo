@@ -22,7 +22,7 @@ En concreto: elige una tarea `todo` desbloqueada (tu rol primero → mayor "Desb
 
 - `frontend`: `app/(app)/**`, `components/**`, `app/globals.css`, `app/page.tsx`, `app/layout.tsx`
 - `backend`: `app/api/**`, `lib/ai/**`, `scripts/**`
-- `data-ops`: `lib/db/**`, `lib/ratelimit/**`, `lib/queue/**`, `lib/supabase/**`, `drizzle/**`, `.github/**`, `vercel.json`, `middleware.ts`, `drizzle.config.ts`
+- `data-ops`: `lib/db/**`, `lib/ratelimit/**`, `lib/queue/**`, `lib/supabase/**`, `drizzle/**`, `.github/**`, `vercel.json`, `proxy.ts`, `drizzle.config.ts`
 - compartidos (cambios mínimos y aditivos): `package.json`, `.env.example`, `lib/env.ts`, `lib/contracts/**`, `tasks.md`, `README.md`
 
 Una tarea puede listar archivos fuera de tu rol; entonces puedes tocarlos. En `tasks.md` solo editas tu fila de estado y, si descubres trabajo nuevo, una fila en la Bandeja.
