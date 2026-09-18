@@ -221,10 +221,33 @@ export function useSpeechInput(onResult: (text: string) => void): UseSpeechInput
     } catch {
       // Ya se había detenido; no hay nada que hacer.
     }
-    if (mediaRecorderRef.current && status === "listening") {
+    // Stop the mediaRecorder if it exists, regardless of current status to avoid
+    // stale closure issues: this is called synchronously from event handlers,
+    // so set idle state immediately to prevent button lingering in "listening".
+    if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
     }
+    // Set idle and clear interim immediately; onend/onstop handlers will also set it
+    // (idempotent). This prevents UI from lingering in "listening" if handlers fire late.
+    setStatus("idle");
+    setInterimText("");
+    stopTracks();
   };
+
+  // Cleanup on unmount: stop any in-progress recording/recognition.
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // Already stopped.
+      }
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+      }
+      stopTracks();
+    };
+  }, []);
 
   return { status, interimText, error, start, stop };
 }
