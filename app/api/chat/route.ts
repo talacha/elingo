@@ -7,6 +7,7 @@ import { enqueuePersist } from "@/lib/queue";
 import { getEnv, resolveProvider } from "@/lib/env";
 import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
 import { getProvider } from "@/lib/ai/providers";
+import { modelForRequest, type TutorTurn } from "@/lib/contracts/ai";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRepo } from "@/lib/db";
 import { chatErrorResponse } from "@/lib/http/errors";
@@ -119,13 +120,22 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
-    // Stream the AI response
-    const { stream, done } = await streamTutorReply({ sessionId, messages, subject });
+    // T-050/T-051: la imagen viaja como `image` (singular) en el contrato de chat; el servicio de IA
+    // espera `images` (array) en TutorTurn. Se convierte aquí, en la frontera entre ambos contratos.
+    const tutorMessages: TutorTurn[] = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      ...(m.image ? { images: [m.image] } : {}),
+    }));
 
-    // Get the provider and model upfront for the header
+    // Stream the AI response
+    const { stream, done } = await streamTutorReply({ sessionId, messages: tutorMessages, subject });
+
+    // Get the provider and model upfront for the header (modelForRequest: el modelo de visión si
+    // el último turno trae imagen y el proveedor lo define; si no, el modelo por defecto).
     const provider = resolveProvider(env);
     const providerInstance = getProvider(env);
-    const modelName = providerInstance.model;
+    const modelName = modelForRequest(providerInstance, { messages: tutorMessages });
 
     // Create streaming response with proper headers
     const response = new NextResponse(stream, {

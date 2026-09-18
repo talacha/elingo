@@ -208,7 +208,7 @@ describe("getProvider", () => {
     const provider = getProvider();
     expect(provider).toBeInstanceOf(OpenRouterProvider);
     expect(provider.name).toBe("openrouter");
-    expect(provider.model).toBe("anthropic/claude-fable-5.1");
+    expect(provider.model).toBe("deepseek/deepseek-v4-flash-0731:free");
   });
 
   it("memoiza la instancia por entorno", () => {

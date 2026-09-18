@@ -19,6 +19,7 @@
 | M3 Auth | Cuentas de padres y alumno | Login y registro; `/chat` protegido con `AUTH_REQUIRED=true`; sesiones ligadas a usuario | T-030 … T-032 |
 | M4 Producción | `https://eli.ngo` operativo y vigilado | Dominio activo; `/api/health` ok; presupuesto diario; e2e en CI; checklist firmada | T-040 … T-045 |
 | M5 Extras | Valor añadido tras la demo | — | Bandeja de `tasks.md` (estado `new`) |
+| M6 Multimodal | Voz e imagen en el chat, arquitectura simple | PR único fusionado; `/chat` acepta voz e imagen con fallback local | T-050 … T-056 |
 
 ## M0 — Bootstrap (secuencial)
 
@@ -89,6 +90,21 @@
 
 Historial para padres, selector de asignatura persistente, rachas, foto del problema (Supabase Storage + visión), migración de sesiones anónimas al iniciar sesión, evals del prompt. Viven en la Bandeja de `tasks.md` con estado `new` hasta que el humano las promueva a `todo`.
 
+## M6 — Multimodal (mixto)
+
+**Objetivo**: ELI entiende voz y fotos además de texto, y puede leer sus respuestas en voz alta, sin complicar la arquitectura: `voz/imagen → texto/visión → tutor socrático → texto → voz opcional`. Push-to-talk, nunca conversación continua: la ganancia percibida de un agente de voz en tiempo real con una fracción de su complejidad.
+
+| Carril | Tareas |
+|---|---|
+| BE | T-050 contrato de imagen → T-051 enrutado a modelo de visión (Anthropic nativo / `OPENROUTER_VISION_MODEL`) + nuevo valor por defecto de `OPENROUTER_MODEL`; T-052 transcripción (OpenRouter Whisper); T-053 síntesis de voz (Fish Audio) |
+| FE | T-054 entrada de voz (`SpeechRecognition`, fallback grabación+Whisper); T-055 entrada de imagen (cámara/adjuntar, comprimida en cliente); T-056 salida de voz ("Escuchar", fallback `speechSynthesis`) |
+
+**Criterio de salida**: en `/chat`, una alumna puede dictar su pregunta, adjuntar una foto de su problema y pulsar "Escuchar" en una respuesta de ELI; todo funciona sin ninguna clave nueva (navegador nativo o mock) y mejora con clave (Fish Audio, OpenRouter); `pnpm check` verde.
+
+**Nota de proceso**: a diferencia de M1-M5, este hito se ejecuta en **una sola rama y un solo PR** (`agent/M6-multimodal`) por instrucción directa del humano, con sub-agentes en modelos económicos escribiendo tramos disjuntos del código bajo supervisión, en vez del enjambre habitual de un agente/rama/PR por tarea.
+
+**Riesgo principal**: los modelos gratuitos de OpenRouter (DeepSeek V4 Flash, Ling 3.0 Flash VL) y la ventana gratuita de Fish Audio pueden cambiar límites, precio o desaparecer sin aviso — OpenRouter lo advierte explícitamente para sus modelos `:free`. Mitigación: todo es configurable por variable de entorno con fallback local (`speechSynthesis`, `SpeechRecognition`, mock); la producción no depende de que ninguno de ellos siga gratis.
+
 ## Grafo de dependencias
 
 ```mermaid
@@ -127,6 +143,11 @@ graph LR
   T002 --> T044
   T041 --> T045[T-045 lanzamiento HU]
   T042 --> T045
+  T011 --> T050[T-050 contrato imagen]
+  T050 --> T051[T-051 enrutado visión]
+  T050 --> T055[T-055 imagen FE]
+  T052[T-052 transcripción] --> T054[T-054 voz FE]
+  T053[T-053 síntesis] --> T056[T-056 escuchar FE]
 ```
 
 ## Cómo ejecutar el enjambre

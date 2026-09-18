@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
               "font-src 'self' https://fonts.gstatic.com; " +
               `connect-src ${connectSrc.join(" ")}; ` +
               "img-src 'self' data: https:; " +
+              // M6: el audio de /api/speech (Fish Audio) se reproduce desde un blob: URL; sin esto
+              // cae a default-src 'self', que SÍ bloquea blob: (verificado empíricamente).
+              "media-src 'self' blob:; " +
               "frame-ancestors 'none'",
           },
           // Prevent embedding in iframes
@@ -39,12 +42,15 @@ const nextConfig: NextConfig = {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
           },
-          // Restrict permissions: disable camera, microphone, geolocation, accelerometer, gyroscope
+          // Restrict permissions: disable camera, geolocation, accelerometer, gyroscope.
+          // Microphone is scoped to this origin only (M6 voice input, T-054) — camera stays
+          // disabled: image capture uses a plain <input type=file capture> (native OS picker),
+          // which doesn't need a live in-page camera stream.
           {
             key: "Permissions-Policy",
             value:
               "camera=(), " +
-              "microphone=(), " +
+              "microphone=(self), " +
               "geolocation=(), " +
               "accelerometer=(), " +
               "gyroscope=(), " +

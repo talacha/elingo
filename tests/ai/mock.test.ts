@@ -122,6 +122,27 @@ describe("MockProvider", () => {
     expect((await done).stopReason).toBe("error");
   });
 
+  it("T-051: con imagen en el último turno, reconoce la foto sin desvelar el resultado", async () => {
+    const history: TutorTurn[] = [
+      {
+        role: "user",
+        content: "mira este problema",
+        images: [{ mediaType: "image/jpeg", data: "ZmFrZS1pbWFnZQ==" }],
+      },
+    ];
+    const { stream, done } = await provider.reply({ ...ask(""), messages: history });
+    const text = (await collect(stream)).join("");
+    expect(text).toContain("foto");
+    expect(text).toContain("Vamos a por ello");
+    expect(text).not.toMatch(/\d/);
+    expect((await done).stopReason).toBe("end_turn");
+  });
+
+  it("sin imagen, no menciona ninguna foto", async () => {
+    const text = (await collect((await provider.reply(ask(PROBLEM))).stream)).join("");
+    expect(text).not.toContain("foto");
+  });
+
   it("si el consumidor cancela a mitad, deja de emitir y termina", async () => {
     const slow = new MockProvider({ delayMs: 1 });
     const { stream, done } = await slow.reply(ask(PROBLEM));

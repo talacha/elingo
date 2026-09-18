@@ -135,7 +135,7 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
 
           <ChatInput
             streaming={streaming}
-            onSend={(text) => void chat.send(text)}
+            onSend={(text, image) => void chat.send(text, image)}
             onStop={chat.stop}
             subject={chat.subject}
           />

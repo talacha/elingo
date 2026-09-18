@@ -19,7 +19,18 @@ export const envSchema = z.object({
   ANTHROPIC_EFFORT: z.enum(["low", "medium", "high"]).default("low"),
   ANTHROPIC_FALLBACK_MODEL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
-  OPENROUTER_MODEL: z.string().default("anthropic/claude-fable-5.1"),
+  // Antes "anthropic/claude-fable-5.1": enrutaba a Fable vía OpenRouter, duplicando el coste de
+  // Anthropic sin motivo. DeepSeek V4 Flash 0731 es gratis en OpenRouter (tasks.md 6.6/M6).
+  OPENROUTER_MODEL: z.string().default("deepseek/deepseek-v4-flash-0731:free"),
+  /** T-051: modelo con visión; se usa en vez de OPENROUTER_MODEL cuando el turno trae imágenes. */
+  OPENROUTER_VISION_MODEL: z.string().default("inclusionai/ling-3.0-flash-vl:free"),
+  /** T-051: si la petición al modelo principal falla, se reintenta una vez con este modelo. */
+  OPENROUTER_FALLBACK_MODEL: z.string().optional(),
+  /** T-052: modelo de transcripción, vía el endpoint dedicado /audio/transcriptions. */
+  OPENROUTER_TRANSCRIBE_MODEL: z.string().default("openai/whisper-large-v3-turbo"),
+  /** T-053: sin clave, /api/speech responde 204 y el cliente cae a speechSynthesis del navegador. */
+  FISH_AUDIO_API_KEY: z.string().optional(),
+  FISH_AUDIO_MODEL: z.string().default("s2.1-pro-free"),
   AI_MAX_OUTPUT_TOKENS: positiveInt(1024),
   AI_WINDOW_PAIRS: z.coerce.number().int().min(0).default(6),
   AI_MAX_INPUT_CHARS: positiveInt(1000),

@@ -282,7 +282,12 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `ANTHROPIC_EFFORT` | `low` (`low` \| `medium` \| `high`) | T-011 |
 | `ANTHROPIC_FALLBACK_MODEL` | vacío → sin fallbacks | T-011 |
 | `OPENROUTER_API_KEY` | vacío | T-019 |
-| `OPENROUTER_MODEL` | `anthropic/claude-fable-5.1` | T-019 |
+| `OPENROUTER_MODEL` | `deepseek/deepseek-v4-flash-0731:free` (antes `anthropic/claude-fable-5.1`: enrutaba a Fable vía OpenRouter, duplicando coste sin motivo) | T-019, T-051 |
+| `OPENROUTER_VISION_MODEL` | `inclusionai/ling-3.0-flash-vl:free` | T-051 |
+| `OPENROUTER_FALLBACK_MODEL` | vacío → sin reintento | T-051 |
+| `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` | T-052 |
+| `FISH_AUDIO_API_KEY` | vacío → sin voz de Fish Audio (cae a `speechSynthesis` del navegador) | T-053 |
+| `FISH_AUDIO_MODEL` | `s2.1-pro-free` | T-053 |
 | `AI_MAX_OUTPUT_TOKENS` | `1024` | T-011, T-017 |
 | `AI_WINDOW_PAIRS` | `6` | T-010 |
 | `AI_MAX_INPUT_CHARS` | `1000` | T-017 |
@@ -298,6 +303,59 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | T-022, T-041 |
 
 `lib/env.ts` valida todo con zod y aplica los valores por defecto. `.env.example` lista cada variable con un comentario.
+
+### 6.7 Imagen en el chat (visión)
+
+```ts
+// lib/contracts/chat.ts
+export const IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const chatImageSchema = z.object({
+  mediaType: z.enum(IMAGE_MIME_TYPES),
+  data: z.string().min(1).max(MAX_IMAGE_BASE64_CHARS),  // base64 sin el prefijo data:...
+});
+// chatMessageSchema añade: image?: ChatImage (solo relevante en el último mensaje, rol user)
+
+// lib/contracts/ai.ts
+export interface TutorImage { mediaType: ImageMimeType; data: string }
+// TutorTurn añade: images?: TutorImage[]
+```
+
+- El texto sigue siendo obligatorio aunque haya imagen: la alumna debe escribir o dictar algo, nunca solo la foto (regla de oro del método socrático).
+- La imagen es efímera: no se persiste en Neon (`messages.content` guarda solo el texto); se procesa y se descarta. Sin cambios de esquema en Neon.
+- Comprimida en cliente antes de enviar (T-055): redimensionada a ~1024 px de lado mayor, WebP/JPEG calidad ~0.7, tope `MAX_IMAGE_BASE64_CHARS`.
+- Enrutado (T-051): con `AI_PROVIDER=anthropic`, la imagen va como bloque `image` nativo (Claude ya es multimodal, mismo modelo). Con `AI_PROVIDER=openrouter`, la petición usa `OPENROUTER_VISION_MODEL` en vez de `OPENROUTER_MODEL` (el modelo de texto por defecto no ve imágenes). El proveedor mock reconoce la imagen en su respuesta sin desvelar el resultado.
+
+### 6.8 Transcripción de voz (entrada)
+
+```ts
+// lib/contracts/media.ts
+export const transcribeRequestSchema = z.object({
+  audio: z.string().min(1).max(MAX_TRANSCRIBE_AUDIO_BASE64_CHARS),  // base64 sin prefijo, tal cual MediaRecorder
+  mimeType: z.string().min(1),                                       // p.ej. "audio/webm"
+});
+export interface TranscribeResponse { text: string }
+
+// lib/ai/transcribe.ts
+export declare function transcribeAudio(input: { audio: string; mimeType: string }): Promise<string | null>;
+```
+
+- `POST /api/transcribe`: `200 { text }`; `204` (sin cuerpo) si no hay `OPENROUTER_API_KEY` o falla el proveedor — el cliente ya debería haber intentado `SpeechRecognition` del navegador antes de llegar aquí; `400 invalid_request`; `429 rate_limited` (misma cookie/ip que el chat, contador propio `transcribe:<clave>`).
+- Vía OpenRouter, endpoint dedicado `POST https://openrouter.ai/api/v1/audio/transcriptions` (no es `/chat/completions`), modelo `OPENROUTER_TRANSCRIBE_MODEL`.
+- Entrada preferida del cliente (T-054): `SpeechRecognition` nativo (sin backend, sin coste, sin clave); solo si el navegador no lo soporta (Firefox, Safari/Chrome de iOS) se graba con `MediaRecorder` y se sube aquí.
+
+### 6.9 Síntesis de voz (salida)
+
+```ts
+// lib/contracts/media.ts
+export const speechRequestSchema = z.object({ text: z.string().min(1).max(MAX_SPEECH_INPUT_CHARS) });
+
+// lib/ai/speech.ts
+export declare function synthesizeSpeech(text: string): Promise<{ audio: ReadableStream<Uint8Array>; contentType: string } | null>;
+```
+
+- `POST /api/speech`: `200` con el audio en streaming (`Content-Type` del proveedor); `204` si no hay `FISH_AUDIO_API_KEY` o falla — el cliente cae a `window.speechSynthesis`; `400 invalid_request`; `429 rate_limited` (contador propio `speech:<clave>`).
+- Fish Audio (`POST https://api.fish.audio/v1/tts`, cabecera `Authorization: Bearer FISH_AUDIO_API_KEY`, modelo `FISH_AUDIO_MODEL`): solo se le envía el texto ya generado por ELI, nunca la voz ni el texto de la alumna (la política de Fish Audio conserva peticiones para mejorar el modelo).
+- "Escuchar" es una acción explícita por burbuja (T-056), nunca automática: evita sonido inesperado en un dispositivo compartido y gasto innecesario de la API.
 
 ## 7. Tabla de estado
 
@@ -332,6 +390,13 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-043 | M4 | FE | done | T-015 | 0 | 2026-09-18 · frontend · favicon `app/icon.svg` derivado de EliMark (lucecita + base), keyframe `fadeIn` gateado con `motion-reduce`, aplicado a burbujas de chat; contraste AA ya verificado; `pnpm check` verde; Lighthouse no verificado en este entorno |
 | T-042 | M4 | BE | done | T-017, T-021 | 1 | 2026-09-18 · backend · endpoint `/api/health`, centralizador de errores `lib/http/errors.ts`, contador diario de tokens `lib/ai/budget.ts` con Redis/memoria, check de presupuesto antes de IA con 503 amable, incremento postior en `after()` |
 | T-044 | M4 | BE | done | T-018, T-002 | 0 | 2026-09-18 · backend · E2E con Playwright: `playwright.config.ts` con webServer mock, `e2e/chat.spec.ts` con dos tests (chat normal y trap), job CI no-blocking, `pnpm e2e` verde |
+| T-050 | M6 | BE | done | T-011 | 2 | 2026-09-18 · orquestador · `chatImageSchema`/`IMAGE_MIME_TYPES`/`MAX_IMAGE_BASE64_CHARS` en `lib/contracts/chat.ts`, `TutorImage`/`TutorTurn.images` en `lib/contracts/ai.ts`; imagen efímera, nunca se persiste; tests de contrato en verde. PR único de M6 (ver T-056) |
+| T-051 | M6 | BE | done | T-050 | 0 | 2026-09-18 · orquestador · bloque `image` nativo en Anthropic; OpenRouter cambia a `OPENROUTER_VISION_MODEL` con reintento a `OPENROUTER_FALLBACK_MODEL` solo si aún no se emitió texto y sin imagen (el respaldo puede no ser multimodal); mock reconoce la foto sin desvelar el resultado; `OPENROUTER_MODEL` por defecto pasa a `deepseek/deepseek-v4-flash-0731:free`. `ANTHROPIC_MODEL`/proveedor de producción sin tocar. Tests en verde |
+| T-052 | M6 | BE | done | — | 1 | 2026-09-18 · sub-agente backend (haiku) + orquestador · `lib/ai/transcribe.ts` + `POST /api/transcribe` (OpenRouter Whisper, endpoint dedicado `/audio/transcriptions`); `204` sin `OPENROUTER_API_KEY`; rate limit propio; tests en verde |
+| T-053 | M6 | BE | done | — | 1 | 2026-09-18 · sub-agente backend (haiku) + orquestador · `lib/ai/speech.ts` + `POST /api/speech` (Fish Audio `s2.1-pro-free`); `204` sin `FISH_AUDIO_API_KEY`; rate limit propio; tests en verde. Corregido en revisión: `next.config.ts` no declaraba `media-src`, así que el audio (`blob:`) caía a `default-src 'self'` y se bloqueaba en silencio — añadido `media-src 'self' blob:` (verificado empíricamente en navegador) |
+| T-054 | M6 | FE | done | T-052 | 0 | 2026-09-18 · sub-agente frontend (haiku) + orquestador · botón de micrófono en `ChatInput` (`useSpeechInput`): `SpeechRecognition` nativo en español, con fallback a `MediaRecorder` + `/api/transcribe`; nunca envía sin revisión de la alumna. Corregido en revisión: cierre obsoleto en `onend` dejaba el botón visualmente en «escuchando»; conversión a base64 con `String.fromCharCode.apply` podía desbordar en grabaciones largas (ahora troceada en bloques de 8 KB). Corregido en `next.config.ts`: `Permissions-Policy` desactivaba `microphone=()` para todo el origen desde T-041 (antes de que existiera esta función) — ahora `microphone=(self)`, sin lo cual la función jamás habría funcionado en producción. Verificado en navegador (el micrófono real está bloqueado en este entorno de agente, pero el flujo de permisos y los estados se comportan como se espera) |
+| T-055 | M6 | FE | done | T-050 | 0 | 2026-09-18 · sub-agente frontend (haiku) + orquestador · botón de cámara/adjuntar en `ChatInput`, `imageCompress.ts` (canvas, ~1024 px, WebP/JPEG); previsualización con opción de quitar; la burbuja propia de la alumna ahora muestra la foto enviada (hueco de UX real, no estaba en el plan original). Corregido en revisión: el fallback sin `createImageBitmap` cargaba la imagen con `URL.createObjectURL` (`blob:`), que la CSP de `img-src` bloquea — ahora usa un `data:` URL (ya permitido), sin tocar la CSP. Verificado en navegador con una imagen real adjuntada, comprimida, enviada y reconocida por el mock. Cierra N-004 |
+| T-056 | M6 | FE | done | T-053 | 0 | 2026-09-18 · sub-agente frontend (haiku) + orquestador · botón «Escuchar»/«Detener» en burbujas de ELI (`useSpeechOutput`): intenta `/api/speech`, cae a `speechSynthesis` en `204`/fallo. Corregido en revisión: la limpieza al desmontar no se ejecutaba (cerraba sobre un `status` obsoleto). Verificado en navegador de punta a punta con el fallback (sin `FISH_AUDIO_API_KEY` local); el envío real a Fish Audio no se pudo probar sin clave. PR único cierra T-050…T-056; `pnpm check` verde (283 tests) |
 | T-045 | M4 | HU | done | T-041, T-042 | 0 | 2026-09-18 · humano · lanzado en `https://eli.ngo`. Verificado en vivo contra los 8 criterios de `north_star.md`: (1) chat funciona en el dominio real — confirmado; (2) primer token rápido — respuesta completa en ~10s, TTFB no medido con precisión; (3) español, negritas y viñetas — confirmado con una conversación real de mates; (4) nunca da la respuesta — confirmado, incluso insistiendo directamente ("dame la respuesta") ELI redirige; (5) historial async en Neon — arquitectura ya cubierta por tests, `GET /api/health` confirma `db: "neon"` en vivo; (6) rate limit activo — `redis: true` en `/api/health` (Upstash real, no memoria), no estresado con 21 peticiones reales; (7) presupuesto acotado — existe (T-042), no agotado a propósito para no interrumpir el lanzamiento; (8) todo sin claves — cubierto continuamente por `pnpm check`/`pnpm smoke` en CI. `GET https://www.eli.ngo/api/health` → `{"ok":true,"provider":"anthropic","model":"claude-fable-5-1","db":"neon","redis":true}` |
 
 ## 8. Detalle de tareas
@@ -474,6 +539,41 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 ### T-045 · HU · Lanzamiento
 - **Qué**: repasar los ocho criterios de éxito de `north_star.md` en `eli.ngo`; poner `AI_PROVIDER=anthropic` y `ANTHROPIC_MODEL=claude-fable-5-1` en producción; probar con una alumna real; revisar coste y logs al día siguiente y ajustar `DAILY_TOKEN_BUDGET` y `RATE_LIMIT_*`.
 
+### T-050 · BE · Contrato de imagen en el chat
+
+- **Qué**: `lib/contracts/chat.ts` añade `chatImageSchema`/`IMAGE_MIME_TYPES`/`MAX_IMAGE_BASE64_CHARS` y `chatMessageSchema.image?`; `lib/contracts/ai.ts` añade `TutorImage`/`TutorTurn.images?`. Ver 6.7.
+- **Definición de hecho**: zod rechaza `mediaType` fuera de `IMAGE_MIME_TYPES` y payloads mayores que `MAX_IMAGE_BASE64_CHARS`; tests de contrato en verde.
+
+### T-051 · BE · Enrutado a modelo de visión
+
+- **Qué**: `AnthropicProvider` añade el bloque `{ type: "image", source: { type: "base64", ... } }` antes del texto cuando el turno trae `images`. `OpenRouterProvider` construye `content` como array (`text` + `image_url` con `data:` URI) cuando hay imagen y esa petición usa `OPENROUTER_VISION_MODEL`; añade reintento con `OPENROUTER_FALLBACK_MODEL` si la petición al modelo principal falla. `MockProvider` reconoce la imagen en el primer chunk sin desvelar el resultado. Nuevo valor por defecto de `OPENROUTER_MODEL`: `deepseek/deepseek-v4-flash-0731:free`.
+- **Definición de hecho**: con una imagen adjunta, `x-model` refleja el modelo de visión realmente usado; sin imagen, comportamiento idéntico a hoy. No cambia `ANTHROPIC_MODEL` ni el proveedor activo en producción — eso sigue siendo una decisión humana fuera de T-045 (ver `north_star.md`, registro de decisiones).
+
+### T-052 · BE · Transcripción de voz vía OpenRouter Whisper
+
+- **Qué**: `lib/ai/transcribe.ts` (`transcribeAudio`) llama a `POST https://openrouter.ai/api/v1/audio/transcriptions` con `OPENROUTER_TRANSCRIBE_MODEL`; `null` si no hay `OPENROUTER_API_KEY` o si la llamada falla (nunca lanza). `app/api/transcribe/route.ts`: valida con `transcribeRequestSchema`, rate limit propio, `200 { text }` / `204` / `400` / `429`.
+- **Definición de hecho**: sin `OPENROUTER_API_KEY`, responde `204` sin romper; tests con `fetch` simulado para éxito/error/sin clave.
+
+### T-053 · BE · Síntesis de voz vía Fish Audio
+
+- **Qué**: `lib/ai/speech.ts` (`synthesizeSpeech`) llama a `POST https://api.fish.audio/v1/tts` con `FISH_AUDIO_API_KEY`/`FISH_AUDIO_MODEL`; `null` si no hay clave o falla. `app/api/speech/route.ts`: valida con `speechRequestSchema`, rate limit propio, `200` streaming de audio / `204` / `400` / `429`. Solo se sintetiza el texto de ELI.
+- **Definición de hecho**: sin `FISH_AUDIO_API_KEY`, responde `204`; tests con `fetch` simulado.
+
+### T-054 · FE · Entrada de voz (dictado)
+
+- **Qué**: botón de micrófono en `ChatInput` (pulsar y mantener para hablar). Primero `SpeechRecognition`/`webkitSpeechRecognition` nativo en español (`lang="es-ES"`) con resultados provisionales visibles; si el navegador no lo soporta, graba con `MediaRecorder` y sube a `/api/transcribe`. El texto transcrito llena el campo para que la alumna lo revise — nunca se envía solo.
+- **Definición de hecho**: progressive enhancement (sin el botón, o inactivo, si no hay `SpeechRecognition` ni `mediaDevices.getUserMedia`); verificado con `pnpm dev` en el navegador.
+
+### T-055 · FE · Entrada de imagen (foto del problema)
+
+- **Qué**: botón de adjuntar/cámara junto a `ChatInput` (`<input type="file" accept="image/*" capture="environment">`); comprime en cliente (canvas, ~1024 px, WebP/JPEG ~0.7) antes de convertir a base64; previsualización con opción de quitar antes de enviar. Cierra N-004 de la Bandeja.
+- **Definición de hecho**: una foto que supera `MAX_IMAGE_BASE64_CHARS` tras comprimir se rechaza con aviso amable en vez de romper el envío; verificado con `pnpm dev`.
+
+### T-056 · FE · Salida de voz ("Escuchar")
+
+- **Qué**: botón "Escuchar" en cada burbuja de ELI; intenta `/api/speech` y reproduce el audio devuelto; si responde `204` o falla, usa `window.speechSynthesis` en español. Nunca automático.
+- **Definición de hecho**: con `AI_PROVIDER=mock` y sin `FISH_AUDIO_API_KEY` (como en CI), el botón sigue funcionando vía `speechSynthesis`; `pnpm check` no requiere audio real.
+
 ## 9. Bandeja (estado `new`)
 
 El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y dependencias. Los agentes añaden filas aquí, nunca las promueven. ID de las filas nuevas: `N-<tarea de origen>-<n>` (por ejemplo `N-T011-1`); las filas históricas conservan `N-0xx`.
@@ -483,7 +583,7 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-001 | Historial de conversaciones para padres (vista de solo lectura) | roadmap M5 |
 | N-002 | Selector de asignatura persistente por sesión y sugerencias por tema | roadmap M5 |
 | N-003 | Rachas simples ("3 días seguidos estudiando") | roadmap M5 |
-| N-004 | Foto del problema: subida a Supabase Storage y lectura con visión | roadmap M5 |
+| N-004 | ~~Foto del problema: subida a Supabase Storage y lectura con visión~~ — implementado en M6/T-055 sin Supabase Storage (efímera, nunca se persiste) | roadmap M5 |
 | N-005 | Migrar sesiones anónimas al usuario al iniciar sesión | roadmap M5 |
 | N-006 | Evals del prompt con clave real (10 problemas por asignatura, criterio "no da la respuesta") | roadmap M5 |
 | N-007 | Ejemplos few-shot en el prompt de sistema para superar el mínimo cacheable y afinar el tono | roadmap M5 |

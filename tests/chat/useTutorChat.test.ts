@@ -513,3 +513,30 @@ describe("describeWait", () => {
     expect(describeWait(600)).toBe("10 minutos");
   });
 });
+
+describe("createTutorChat: imágenes adjuntas", () => {
+  it("envía la imagen cuando se proporciona", async () => {
+    const fetch = fakeFetch(() => textStream(["Ok"]));
+    const chat = make(fetch);
+
+    const image = { mediaType: "image/webp" as const, data: "base64encodeddata" };
+    await chat.send("Aquí está el problema", image);
+
+    const body = bodyOf(call(fetch, 0));
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0]?.image).toEqual(image);
+    expect(body.messages[0]?.content).toBe("Aquí está el problema");
+  });
+
+  it("omite la imagen si no se proporciona", async () => {
+    const fetch = fakeFetch(() => textStream(["Ok"]));
+    const chat = make(fetch);
+
+    await chat.send("Solo texto, sin foto");
+
+    const body = bodyOf(call(fetch, 0));
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0]?.image).toBeUndefined();
+    expect(body.messages[0]?.content).toBe("Solo texto, sin foto");
+  });
+});

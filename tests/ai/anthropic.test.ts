@@ -348,6 +348,33 @@ describe("AnthropicProvider", () => {
     delete process.env.ANTHROPIC_API_KEY;
   });
 
+  it("T-051: con imagen en el último turno, antepone el bloque image al texto (Claude ya es multimodal)", async () => {
+    const { client, calls } = fakeClient({ text: ["Veo tu foto."] });
+    const withImage: TutorReplyInput = {
+      ...input,
+      messages: [
+        ...input.messages.slice(0, -1),
+        {
+          role: "user",
+          content: "me trabé en el denominador",
+          images: [{ mediaType: "image/jpeg", data: "ZmFrZS1pbWFnZQ==" }],
+        },
+      ],
+    };
+    await readAll((await new AnthropicProvider({ client }).reply(withImage)).stream);
+
+    const messages = calls.plain[0].params.messages as Array<{ content: unknown }>;
+    expect(messages.at(-1)?.content).toEqual([
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/jpeg", data: "ZmFrZS1pbWFnZQ==" },
+      },
+      { type: "text", text: "me trabé en el denominador" },
+    ]);
+    // Los turnos sin imagen siguen siendo texto plano, sin envolver en un array.
+    expect(messages[0]?.content).toBe(input.messages[0].content);
+  });
+
   it("mapea stop_reason", () => {
     expect(toStopReason("end_turn")).toBe("end_turn");
     expect(toStopReason("max_tokens")).toBe("max_tokens");
