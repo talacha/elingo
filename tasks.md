@@ -314,7 +314,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-013 | M1 | FE | done | T-001 | 6 | 2026-09-17 · frontend · PR #8 (auto-merge): tokens `@theme` de Tailwind 4 en `app/globals.css` (paleta cálida de la landing con tema claro/oscuro, radios grandes, escala tipográfica fluida, contraste AA), Fredoka y Andika vía `next/font/google`, `lang="es"` y metadatos en `app/layout.tsx`, landing en `app/page.tsx` con el contenido de `public/landing.html` y botón «Empezar» → `/chat` (404 hasta T-014), `components/ui` (Button, Card, cn) y `components/landing` (mascota, logo, ejemplo de chat); eliminados el rewrite de `next.config.ts` y el archivo estático; test SSR `tests/ui/landing.test.tsx`; revisado a 375 px y 1280 px sin scroll horizontal; `pnpm check` verde |
 | T-014 | M1 | FE | todo | T-013 | 5 | |
 | T-015 | M1 | FE | todo | T-014 | 2 | |
-| T-016 | M1 | DO | todo | T-002 | 3 | Proyecto creado a mano el 2026-09-17: `elingo/elingo` (team `elingo`), conectado a GitHub, producción https://elingo-elingo.vercel.app; queda lo indicado en el detalle |
+| T-016 | M1 | DO | done | T-002 | 3 | 2026-09-17 · orquestador · proyecto `elingo/elingo` (team `elingo`) creado a mano y conectado a GitHub (producción https://elingo-elingo.vercel.app, previews por PR verdes desde #3); `AI_PROVIDER=mock` en preview y development (producción sin fijar: `resolveProvider` elige por claves; T-045 lo fija); Neon del Marketplace con prefijo `eli_` y `DATABASE_URL` copiada (T-020); Vercel Authentication sigue activa para producción: la app está tras login de Vercel hasta que el humano la pase a Standard Protection |
 | T-017 | M1 | BE | todo | T-012 | 2 | |
 | T-018 | M1 | BE | todo | T-012, T-014 | 1 | |
 | T-019 | M1 | BE | todo | T-011 | 0 | |
