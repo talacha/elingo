@@ -6,6 +6,8 @@ import { enqueuePersist } from "@/lib/queue";
 import { getEnv, resolveProvider } from "@/lib/env";
 import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
 import { getProvider } from "@/lib/ai/providers";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRepo } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -47,6 +49,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get authenticated user from Supabase if available
+    const supabase = await createSupabaseServerClient();
+    let userId: string | undefined;
+    if (supabase) {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        const repo = getRepo();
+        const user = await repo.upsertUserFromSupabase({
+          supabaseUserId: data.user.id,
+          displayName: data.user.user_metadata?.display_name,
+        });
+        userId = user.id;
+      }
+    }
+
     // Get or create the anonymous cookie
     let anonId = req.cookies.get(ANON_COOKIE)?.value;
     let setCookie = false;
@@ -55,8 +72,8 @@ export async function POST(req: NextRequest) {
       setCookie = true;
     }
 
-    // Rate limit key: userId ?? anonId ?? ip (no userId yet in T-023)
-    const rateLimitKey = anonId || getClientIp(req);
+    // Rate limit key: userId ?? anonId ?? ip
+    const rateLimitKey = userId || anonId || getClientIp(req);
     const limit = await checkRateLimit(rateLimitKey);
     if (!limit.ok) {
       const response = NextResponse.json(
@@ -117,9 +134,10 @@ export async function POST(req: NextRequest) {
         const logEvent = createChatLogEvent(sessionId, provider, result);
         logChatEvent(logEvent);
 
-        // Persist the full message history with anonId
+        // Persist the full message history with userId or anonId
         await enqueuePersist({
           sessionId,
+          userId,
           anonId,
           subject,
           messages: [
