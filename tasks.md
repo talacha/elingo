@@ -331,7 +331,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-041 | M4 | DO | todo | T-016 | 1 | |
 | T-042 | M4 | BE | todo | T-017, T-021 | 1 | |
 | T-043 | M4 | FE | todo | T-015 | 0 | |
-| T-044 | M4 | BE | todo | T-018, T-002 | 0 | |
+| T-044 | M4 | BE | done | T-018, T-002 | 0 | 2026-09-18 · backend · E2E con Playwright: `playwright.config.ts` con webServer mock, `e2e/chat.spec.ts` con dos tests (chat normal y trap), job CI no-blocking, `pnpm e2e` verde |
 | T-045 | M4 | HU | todo | T-041, T-042 | 0 | |
 
 ## 8. Detalle de tareas
@@ -495,3 +495,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-T014-1 | Aviso de 429 con cuenta atrás: desactivar «Reintentar» hasta que pase `retryAfter` (hoy el botón está siempre activo) | T-014 |
 | N-T014-2 | Resuelto (M1): `next dev` (Next 16) añade un bloque `nextjs-agent-rules` a `CLAUDE.md` en cada arranque; se commiteó una vez en `milestone/m1` (el propio bloque indica que esto mantiene el árbol limpio) en vez de evitarlo | T-014 |
 | N-T030-1 | Resuelto (M3): `middleware.ts` renombrado a `proxy.ts` y la función exportada de `middleware` a `proxy` (Next.js 16 deprecó la convención `middleware`); actualizadas las referencias en la sección 3, T-030, T-032, `CLAUDE.md` y `.claude/agents/data-ops.md` | T-030 |
+| N-T044-1 | Considerar exigir el job `e2e` como requerido en el ruleset de `main` una vez que sea estable y ejecute consistentemente en CI | T-044 |
