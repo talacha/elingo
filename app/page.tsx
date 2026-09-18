@@ -153,7 +153,7 @@ export default function Home() {
           </div>
           <div className="relative order-first w-[min(70%,240px)] justify-self-center md:order-none md:w-[min(100%,300px)]">
             <span className="absolute -top-3.5 -right-2.5 rotate-[3deg] rounded-bubble bg-paper px-4 py-[0.55em] font-display text-[1.05rem] font-semibold whitespace-nowrap text-paper-ink shadow-card after:absolute after:-bottom-[7px] after:left-[22px] after:size-4 after:rotate-45 after:rounded-[3px] after:bg-paper after:content-['']">
-              ¿En qué te trabaste hoy?
+              ¿En qué te trabajaste hoy?
             </span>
             <EliMascot className="block h-auto w-full" />
           </div>
@@ -299,7 +299,7 @@ export default function Home() {
             Lo que ELI hace y lo que no.
           </h2>
           <p className="max-w-[58ch]">
-            ELI (Tutor Nexo) es un tutor de estudio con inteligencia artificial para estudiantes de
+            ELI (hagamos la tarea juntos) es un tutor de estudio con inteligencia artificial para estudiantes de
             6º de primaria, de 11 a 12 años, que se preparan para la secundaria.
           </p>
           <div className="mt-1 grid gap-6 md:grid-cols-2 md:gap-x-10">
@@ -354,16 +354,18 @@ export default function Home() {
             </div>
           </div>
           <p className="text-ink-soft">
-            Muy pronto en <strong>eli.ngo</strong>.
+            Ya disponible en <strong>eli.ngo</strong>.
           </p>
         </Card>
       </main>
 
       <footer className="mt-section flex flex-wrap justify-between gap-x-6 gap-y-2 border-t border-dashed border-line pt-[26px] pb-2 text-[0.95rem] text-ink-soft">
         <span>
-          <strong>ELI</strong> · Tutor Nexo
+          <strong>ELI</strong> · hagamos la tarea juntos
         </span>
-        <span>Proyecto en construcción · eli.ngo</span>
+        <Link href="/chat" className="underline decoration-dotted underline-offset-2 hover:text-ink">
+          Prueba ELI: https://eli.ngo/chat
+        </Link>
       </footer>
     </div>
   );
