@@ -303,7 +303,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | ID | Hito | Rol | Estado | Depende de | Desbloquea | Resultado |
 |---|---|---|---|---|---|---|
 | T-000 | M0 | HU | todo | — | 0 | |
-| T-001 | M0 | BE | todo | — | 26 | |
+| T-001 | M0 | BE | in-progress | — | 26 | in-progress · BE · 2026-09-17 |
 | T-002 | M0 | DO | todo | T-001 | 15 | |
 | T-010 | M1 | BE | todo | T-001 | 9 | |
 | T-011 | M1 | BE | todo | T-010 | 8 | |
