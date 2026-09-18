@@ -303,7 +303,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | ID | Hito | Rol | Estado | Depende de | Desbloquea | Resultado |
 |---|---|---|---|---|---|---|
 | T-000 | M0 | HU | todo | — | 0 | |
-| T-001 | M0 | BE | todo | — | 26 | Intento del 2026-09-17 interrumpido: scaffold sin commitear en `.claude/worktrees/agent-aa772a8fec347c2b5` (solo referencia); lock liberado |
+| T-001 | M0 | BE | done | — | 26 | 2026-09-17 · backend (orquestador) · scaffold Next 16 + tooling + `lib/env`, `lib/contracts`, stubs con fallback, landing estática en `public/landing.html` con rewrite de `/`; `pnpm check` verde; push directo a `main` |
 | T-002 | M0 | DO | todo | T-001 | 15 | |
 | T-010 | M1 | BE | todo | T-001 | 9 | |
 | T-011 | M1 | BE | todo | T-010 | 8 | |

@@ -1,0 +1,7 @@
+*.md
+pnpm-lock.yaml
+.next
+.claude
+.kilo
+tmp-scaffold
+public/landing.html
