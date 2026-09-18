@@ -1,13 +1,27 @@
 import type { RateLimiter, RateLimitResult } from "@/lib/contracts/ratelimit";
 
+export type WindowUnit = "ms" | "s" | "m" | "h" | "d";
+
+const UNIT_MS: Record<WindowUnit, number> = {
+  ms: 1,
+  s: 1_000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
+
+/** Descompone "10 m", "10m" o " 30 S " en `{ value: 10, unit: "m" }`. Lanza si el formato no es válido o el valor es 0. */
+export function parseWindowParts(window: string): { value: number; unit: WindowUnit } {
+  const match = /^\s*(\d+)\s*(ms|s|m|h|d)\s*$/i.exec(window);
+  const value = match ? Number(match[1]) : 0;
+  if (!match || value <= 0) throw new Error(`RATE_LIMIT_WINDOW inválida: "${window}"`);
+  return { value, unit: match[2].toLowerCase() as WindowUnit };
+}
+
 /** Convierte "10 m", "10m", "30 s", "1 h" en milisegundos. */
 export function parseWindow(window: string): number {
-  const match = /^\s*(\d+)\s*(ms|s|m|h|d)\s*$/i.exec(window);
-  if (!match) throw new Error(`RATE_LIMIT_WINDOW inválida: "${window}"`);
-  const value = Number(match[1]);
-  const unit = match[2].toLowerCase();
-  const factor = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 }[unit] ?? 1;
-  return value * factor;
+  const { value, unit } = parseWindowParts(window);
+  return value * UNIT_MS[unit];
 }
 
 /**
