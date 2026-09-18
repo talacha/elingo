@@ -308,7 +308,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-010 | M1 | BE | todo | T-001 | 9 | |
 | T-011 | M1 | BE | todo | T-010 | 8 | |
 | T-012 | M1 | BE | todo | T-011 | 6 | |
-| T-013 | M1 | FE | todo | T-001 | 6 | |
+| T-013 | M1 | FE | in-progress | T-001 | 6 | in-progress · frontend · 2026-09-17 |
 | T-014 | M1 | FE | todo | T-013 | 5 | |
 | T-015 | M1 | FE | todo | T-014 | 2 | |
 | T-016 | M1 | DO | todo | T-002 | 3 | Proyecto creado a mano el 2026-09-17: `elingo/elingo` (team `elingo`), conectado a GitHub, producción https://elingo-elingo.vercel.app; queda lo indicado en el detalle |
