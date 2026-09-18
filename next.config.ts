@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value:
               "default-src 'self'; " +
-              "script-src 'self' 'unsafe-inline'; " + // Next.js RSC hydration scripts — see comment above
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}; ` + // unsafe-inline: RSC hydration scripts (see comment above); unsafe-eval: dev-only, React's HMR debugging (never used in production)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
               "font-src 'self' https://fonts.gstatic.com; " +
               `connect-src ${connectSrc.join(" ")}; ` +
