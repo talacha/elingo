@@ -6,7 +6,7 @@ import { SUBJECTS } from "@/lib/contracts/chat";
  * Esquema de Neon (Postgres) en Drizzle. Fuente de verdad: tasks.md, sección 6.5.
  * El SQL versionado en drizzle/ se genera con `pnpm db:generate`; nunca se edita a mano.
  */
-export const USER_ROLES = ["student", "parent"] as const;
+export const USER_ROLES = ["student", "parent", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const MESSAGE_ROLES = ["user", "assistant", "system"] as const;
@@ -22,10 +22,27 @@ export const users = pgTable(
     displayName: text("display_name"),
     grade: text("grade").notNull().default("6º"),
     role: text("role", { enum: USER_ROLES }).notNull().default("student"),
+    /**
+     * Hash (scrypt, sal incluida) de la "palabra segura" del padre/madre -- ver
+     * lib/auth/safeword.ts. Nunca se guarda en texto plano. null = no configurada.
+     */
+    safeWordHash: text("safe_word_hash"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
-  (t) => [check("users_role_check", sql`${t.role} in ('student', 'parent')`)],
+  (t) => [check("users_role_check", sql`${t.role} in ('student', 'parent', 'admin')`)],
 );
+
+/**
+ * Ajustes configurables en tiempo de ejecución desde /admin (p. ej. OPENROUTER_MODEL),
+ * como capa opcional por encima del valor por defecto de la variable de entorno.
+ * Ver lib/settings.ts.
+ */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+});
 
 export const chatSessions = pgTable(
   "chat_sessions",
@@ -66,3 +83,4 @@ export const messages = pgTable(
 export type UserRow = typeof users.$inferSelect;
 export type ChatSessionRow = typeof chatSessions.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
+export type AppSettingRow = typeof appSettings.$inferSelect;

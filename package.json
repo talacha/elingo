@@ -15,6 +15,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke-chat.mjs",
+    "admin:grant": "node scripts/make-admin.mjs",
     "e2e": "playwright test",
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate",

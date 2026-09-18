@@ -55,7 +55,16 @@ export interface UserRecord {
   displayName: string | null;
   grade: string;
   role: UserRole;
+  /** Hash de la palabra segura (lib/auth/safeword.ts); null = no configurada. Nunca texto plano. */
+  safeWordHash: string | null;
   createdAt: string;
+}
+
+export interface AppSetting {
+  key: string;
+  value: string;
+  updatedAt: string;
+  updatedBy: string | null;
 }
 
 export type RepoKind = "neon" | "memory";
@@ -79,4 +88,14 @@ export interface Repo {
   getSession(id: string, scope: RepoScope): Promise<SessionDetailResponse | null>;
   /** Crea o actualiza el usuario ligado a Supabase (T-032); solo actualiza los campos que llegan. */
   upsertUserFromSupabase(input: SupabaseUserInput): Promise<UserRecord>;
+  /** Por id de Neon (no el de Supabase); null si no existe. */
+  getUserById(id: string): Promise<UserRecord | null>;
+  /** Guarda (o borra con null) el hash de la palabra segura del padre/madre. */
+  setSafeWordHash(userId: string, hash: string | null): Promise<void>;
+  /** Todas las cuentas con fila en Neon, para /admin. No incluye sesiones puramente anónimas. */
+  listUsers(): Promise<UserRecord[]>;
+  /** Ajuste guardado en app_settings; null si no está puesto (se usa el valor por defecto de la env var). */
+  getSetting(key: string): Promise<string | null>;
+  setSetting(key: string, value: string, updatedBy?: string): Promise<void>;
+  listSettings(): Promise<AppSetting[]>;
 }

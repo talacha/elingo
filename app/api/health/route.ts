@@ -12,7 +12,7 @@ export async function GET() {
     const env = getEnv();
     const repo = getRepo();
     const provider = resolveProvider(env);
-    const providerInstance = getProvider(env);
+    const providerInstance = await getProvider(env);
 
     // Read package.json version
     // eslint-disable-next-line @typescript-eslint/no-require-imports

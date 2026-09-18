@@ -4,6 +4,7 @@ import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sess
 import { createDb, type Db } from "./client";
 import {
   MAX_SESSIONS,
+  type AppSetting,
   type NewMessage,
   type Repo,
   type RepoScope,
@@ -12,9 +13,11 @@ import {
   type UserRecord,
 } from "./repo";
 import {
+  appSettings,
   chatSessions,
   messages,
   users,
+  type AppSettingRow,
   type ChatSessionRow,
   type MessageRow,
   type UserRow,
@@ -127,6 +130,49 @@ export class NeonRepo implements Repo {
       .returning();
     return toUser(row);
   }
+
+  async getUserById(id: string): Promise<UserRecord | null> {
+    const [row] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return row ? toUser(row) : null;
+  }
+
+  async setSafeWordHash(userId: string, hash: string | null): Promise<void> {
+    const [row] = await this.db
+      .update(users)
+      .set({ safeWordHash: hash })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id });
+    if (!row) throw new Error(`users: el usuario ${userId} no existe`);
+  }
+
+  async listUsers(): Promise<UserRecord[]> {
+    const rows = await this.db.select().from(users).orderBy(users.createdAt);
+    return rows.map(toUser);
+  }
+
+  async getSetting(key: string): Promise<string | null> {
+    const [row] = await this.db
+      .select()
+      .from(appSettings)
+      .where(eq(appSettings.key, key))
+      .limit(1);
+    return row?.value ?? null;
+  }
+
+  async setSetting(key: string, value: string, updatedBy?: string): Promise<void> {
+    await this.db
+      .insert(appSettings)
+      .values({ key, value, updatedBy: updatedBy ?? null })
+      .onConflictDoUpdate({
+        target: appSettings.key,
+        set: { value, updatedAt: sql`now()`, updatedBy: updatedBy ?? null },
+      });
+  }
+
+  async listSettings(): Promise<AppSetting[]> {
+    const rows = await this.db.select().from(appSettings).orderBy(appSettings.key);
+    return rows.map(toSetting);
+  }
 }
 
 function scopeWhere(scope: RepoScope) {
@@ -159,6 +205,16 @@ function toUser(row: UserRow): UserRecord {
     displayName: row.displayName,
     grade: row.grade,
     role: row.role,
+    safeWordHash: row.safeWordHash,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toSetting(row: AppSettingRow): AppSetting {
+  return {
+    key: row.key,
+    value: row.value,
+    updatedAt: row.updatedAt.toISOString(),
+    updatedBy: row.updatedBy,
   };
 }

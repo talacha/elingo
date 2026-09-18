@@ -10,7 +10,9 @@ import {
 import { createTutorStream, ZERO_USAGE } from "@/lib/ai/providers/stream";
 import { streamTutorReply, TutorInputError } from "@/lib/ai/service";
 import type { TutorProvider, TutorReplyInput, TutorTurn } from "@/lib/contracts/ai";
+import { getRepo, resetRepo } from "@/lib/db";
 import { resetEnvCache } from "@/lib/env";
+import { resetSettingsCache } from "@/lib/settings";
 
 const ENV_KEYS = ["AI_PROVIDER", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "AI_WINDOW_PAIRS"];
 
@@ -182,39 +184,52 @@ describe("getProvider", () => {
     for (const key of ENV_KEYS) delete process.env[key];
     resetEnvCache();
     resetProviderCache();
+    resetSettingsCache();
+    resetRepo();
   });
 
-  it("elige mock sin claves y anthropic con ANTHROPIC_API_KEY", () => {
-    expect(getProvider()).toBeInstanceOf(MockProvider);
+  it("elige mock sin claves y anthropic con ANTHROPIC_API_KEY", async () => {
+    expect(await getProvider()).toBeInstanceOf(MockProvider);
 
     process.env.ANTHROPIC_API_KEY = "sk-ant-test";
     resetEnvCache();
-    const anthropic = getProvider();
+    const anthropic = await getProvider();
     expect(anthropic).toBeInstanceOf(AnthropicProvider);
     expect(anthropic.name).toBe("anthropic");
     expect(anthropic.model).toBe("claude-fable-5-1");
   });
 
-  it("AI_PROVIDER explícito manda sobre las claves", () => {
+  it("AI_PROVIDER explícito manda sobre las claves", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-test";
     process.env.AI_PROVIDER = "mock";
     resetEnvCache();
-    expect(getProvider()).toBeInstanceOf(MockProvider);
+    expect(await getProvider()).toBeInstanceOf(MockProvider);
   });
 
-  it("openrouter elige OpenRouterProvider con OPENROUTER_API_KEY", () => {
+  it("openrouter elige OpenRouterProvider con OPENROUTER_API_KEY", async () => {
     process.env.OPENROUTER_API_KEY = "sk-or-test";
     resetEnvCache();
-    const provider = getProvider();
+    const provider = await getProvider();
     expect(provider).toBeInstanceOf(OpenRouterProvider);
     expect(provider.name).toBe("openrouter");
     expect(provider.model).toBe("anthropic/claude-fable-5.1");
   });
 
-  it("memoiza la instancia por entorno", () => {
-    const first = getProvider();
-    expect(getProvider()).toBe(first);
+  it("openrouter usa el modelo de /admin (app_settings) si está puesto, si no el de env", async () => {
+    process.env.OPENROUTER_API_KEY = "sk-or-test";
     resetEnvCache();
-    expect(getProvider()).not.toBe(first);
+    resetSettingsCache();
+    const repo = getRepo();
+    await repo.setSetting("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet");
+    resetProviderCache();
+    const overridden = await getProvider();
+    expect(overridden.model).toBe("anthropic/claude-3.5-sonnet");
+  });
+
+  it("memoiza la instancia por entorno", async () => {
+    const first = await getProvider();
+    expect(await getProvider()).toBe(first);
+    resetEnvCache();
+    expect(await getProvider()).not.toBe(first);
   });
 });

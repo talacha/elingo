@@ -6,7 +6,7 @@ import { getRepo, resetRepo } from "@/lib/db";
 import { MemoryRepo } from "@/lib/db/memory";
 import { NeonRepo } from "@/lib/db/neon";
 import type { Repo } from "@/lib/db/repo";
-import { chatSessions, users } from "@/lib/db/schema";
+import { appSettings, chatSessions, users } from "@/lib/db/schema";
 import { resetEnvCache } from "@/lib/env";
 
 const uuid = () => crypto.randomUUID();
@@ -162,6 +162,33 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
       expect(await repo.getSession(sessionId, { userId: user.id })).not.toBeNull();
       expect(await repo.getSession(sessionId, { anonId: anon() })).toBeNull();
     });
+
+    it("getUserById devuelve la fila o null si no existe", async () => {
+      const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      expect(await repo.getUserById(user.id)).toMatchObject({ id: user.id, safeWordHash: null });
+      expect(await repo.getUserById(uuid())).toBeNull();
+    });
+
+    it("setSafeWordHash guarda y borra (con null) el hash de la palabra segura", async () => {
+      const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      await repo.setSafeWordHash(user.id, "salt:derivedkey");
+      expect((await repo.getUserById(user.id))?.safeWordHash).toBe("salt:derivedkey");
+      await repo.setSafeWordHash(user.id, null);
+      expect((await repo.getUserById(user.id))?.safeWordHash).toBeNull();
+    });
+
+    it("setSafeWordHash falla si el usuario no existe", async () => {
+      await expect(repo.setSafeWordHash(uuid(), "x")).rejects.toThrow();
+    });
+
+    it("listUsers incluye las cuentas creadas en este repositorio", async () => {
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: newSupabaseId(),
+        displayName: "Test listUsers",
+      });
+      const all = await repo.listUsers();
+      expect(all.map((u) => u.id)).toContain(user.id);
+    });
   });
 }
 
@@ -181,6 +208,51 @@ if (databaseUrl) {
 } else {
   describe.skip("repositorio Neon (sin DATABASE_URL)", () => {
     it("se omite", () => {});
+  });
+}
+
+function settingsSuite(name: string, repo: Repo, cleanupKeys?: (keys: string[]) => Promise<void>) {
+  describe(`ajustes (${name})`, () => {
+    const keys: string[] = [];
+    const newKey = () => {
+      const key = `test.setting.${uuid()}`;
+      keys.push(key);
+      return key;
+    };
+
+    afterAll(async () => {
+      await cleanupKeys?.(keys);
+    });
+
+    it("getSetting devuelve null si no está puesto", async () => {
+      expect(await repo.getSetting(newKey())).toBeNull();
+    });
+
+    it("setSetting crea y luego sobreescribe el valor", async () => {
+      const key = newKey();
+      await repo.setSetting(key, "anthropic/claude-fable-5.1");
+      expect(await repo.getSetting(key)).toBe("anthropic/claude-fable-5.1");
+      await repo.setSetting(key, "anthropic/claude-fable-5.1-mini");
+      expect(await repo.getSetting(key)).toBe("anthropic/claude-fable-5.1-mini");
+    });
+
+    it("listSettings incluye los ajustes guardados", async () => {
+      const key = newKey();
+      await repo.setSetting(key, "valor");
+      const all = await repo.listSettings();
+      expect(all.map((s) => s.key)).toContain(key);
+    });
+  });
+}
+
+settingsSuite("en memoria", new MemoryRepo());
+
+if (databaseUrl) {
+  const neonSettings = new NeonRepo(databaseUrl);
+  settingsSuite("Neon", neonSettings, async (keys) => {
+    if (keys.length) {
+      await neonSettings.db.delete(appSettings).where(inArray(appSettings.key, keys));
+    }
   });
 }
 
@@ -215,6 +287,17 @@ describe("migraciones versionadas", () => {
       "messages_session_created_idx",
       "ON DELETE cascade",
       "ON DELETE set null",
+    ]) {
+      expect(sql).toContain(expected);
+    }
+  });
+
+  it("drizzle/0001_cultured_storm.sql añade app_settings y safe_word_hash", () => {
+    const sql = readFileSync(resolve(process.cwd(), "drizzle/0001_cultured_storm.sql"), "utf8");
+    for (const expected of [
+      'CREATE TABLE "app_settings"',
+      'ADD COLUMN "safe_word_hash"',
+      "'student', 'parent', 'admin'",
     ]) {
       expect(sql).toContain(expected);
     }

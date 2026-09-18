@@ -33,6 +33,6 @@ export async function streamTutorReply(
   if (!last || last.role !== "user") {
     throw new TutorInputError("El último mensaje debe ser de la alumna y no puede estar vacío.");
   }
-  const provider = options.provider ?? getProvider();
+  const provider = options.provider ?? (await getProvider());
   return provider.reply({ ...input, messages });
 }

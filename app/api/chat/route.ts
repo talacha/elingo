@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     // Get the provider and model upfront for the header
     const provider = resolveProvider(env);
-    const providerInstance = getProvider(env);
+    const providerInstance = await getProvider(env);
     const modelName = providerInstance.model;
 
     // Create streaming response with proper headers

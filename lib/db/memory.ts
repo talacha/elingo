@@ -2,6 +2,7 @@ import type { ChatMessage, Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import {
   MAX_SESSIONS,
+  type AppSetting,
   type NewMessage,
   type Repo,
   type RepoScope,
@@ -44,6 +45,7 @@ export class MemoryRepo implements Repo {
   private readonly users = new Map<string, UserRecord>();
   private readonly sessions = new Map<string, MemSession>();
   private readonly messages = new Map<string, MemMessage>();
+  private readonly settings = new Map<string, AppSetting>();
   private seq = 0;
 
   constructor(private readonly now: () => number = Date.now) {}
@@ -137,10 +139,42 @@ export class MemoryRepo implements Repo {
           displayName: input.displayName ?? null,
           grade: input.grade ?? "6º",
           role: input.role ?? "student",
+          safeWordHash: null,
           createdAt: new Date(this.now()).toISOString(),
         };
     this.users.set(row.id, row);
     return row;
+  }
+
+  async getUserById(id: string): Promise<UserRecord | null> {
+    return this.users.get(id) ?? null;
+  }
+
+  async setSafeWordHash(userId: string, hash: string | null): Promise<void> {
+    const prev = this.users.get(userId);
+    if (!prev) throw new Error(`users: el usuario ${userId} no existe`);
+    this.users.set(userId, { ...prev, safeWordHash: hash });
+  }
+
+  async listUsers(): Promise<UserRecord[]> {
+    return [...this.users.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async getSetting(key: string): Promise<string | null> {
+    return this.settings.get(key)?.value ?? null;
+  }
+
+  async setSetting(key: string, value: string, updatedBy?: string): Promise<void> {
+    this.settings.set(key, {
+      key,
+      value,
+      updatedAt: new Date(this.now()).toISOString(),
+      updatedBy: updatedBy ?? null,
+    });
+  }
+
+  async listSettings(): Promise<AppSetting[]> {
+    return [...this.settings.values()].sort((a, b) => a.key.localeCompare(b.key));
   }
 }
 
