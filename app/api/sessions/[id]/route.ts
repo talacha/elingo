@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ANON_COOKIE } from "@/lib/contracts/chat";
 import type { SessionDetailResponse } from "@/lib/contracts/sessions";
 import { getRepo } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,32 @@ export async function GET(
       );
     }
 
+    const repo = getRepo();
+
+    // Try to get authenticated user first
+    const supabase = await createSupabaseServerClient();
+    if (supabase) {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        // User is authenticated - return their session by user_id
+        const user = await repo.upsertUserFromSupabase({
+          supabaseUserId: data.user.id,
+          displayName: data.user.user_metadata?.display_name,
+        });
+        const detail = await repo.getSession(id, { userId: user.id });
+        if (detail) {
+          const response: SessionDetailResponse = detail;
+          return Response.json(response, { status: 200 });
+        }
+        // User authenticated but session doesn't belong to them
+        return Response.json(
+          { error: "not_found", message: "Sesión no encontrada" },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Fall back to anonymous sessions via cookie
     const cookieStore = await cookies();
     const anonId = cookieStore.get(ANON_COOKIE)?.value;
 
@@ -46,7 +73,6 @@ export async function GET(
       );
     }
 
-    const repo = getRepo();
     const detail = await repo.getSession(id, { anonId });
 
     // 404 if session doesn't exist or doesn't belong to the caller
