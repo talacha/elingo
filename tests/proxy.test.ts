@@ -14,6 +14,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
+/** Mock the repo (used by the /admin role check). */
+vi.mock("@/lib/db", () => ({
+  getRepo: vi.fn(),
+}));
+
 function createRequest(pathname: string, options?: { cookie?: string }): NextRequest {
   const headers: Record<string, string> = {};
   if (options?.cookie) {
@@ -319,6 +324,84 @@ describe("proxy.ts auth gate (T-032)", () => {
       const response = await proxy(req);
 
       expect(response.status).toBe(401);
+    });
+  });
+
+  describe("/admin gate (always on, independent of AUTH_REQUIRED)", () => {
+    it("redirects to /login when not authenticated", async () => {
+      const { refreshSupabaseSession } = await import("@/lib/supabase/middleware");
+      const req = createRequest("/admin");
+      const mockResponse = NextResponse.next({ request: req });
+      vi.mocked(refreshSupabaseSession).mockResolvedValue({
+        response: mockResponse,
+        supabase: null,
+      });
+
+      const response = await proxy(req);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toContain("/login");
+    });
+
+    it("redirects a logged-in non-admin to /", async () => {
+      const { refreshSupabaseSession } = await import("@/lib/supabase/middleware");
+      const { getRepo } = await import("@/lib/db");
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+      } as unknown as SupabaseClient;
+      vi.mocked(getRepo).mockReturnValue({
+        upsertUserFromSupabase: vi.fn().mockResolvedValue({ role: "parent" }),
+      } as never);
+      const req = createRequest("/admin/settings");
+      const mockResponse = NextResponse.next({ request: req });
+      vi.mocked(refreshSupabaseSession).mockResolvedValue({
+        response: mockResponse,
+        supabase: mockSupabase,
+      });
+
+      const response = await proxy(req);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toMatch(/\/$/);
+    });
+
+    it("allows a logged-in admin through", async () => {
+      const { refreshSupabaseSession } = await import("@/lib/supabase/middleware");
+      const { getRepo } = await import("@/lib/db");
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+      } as unknown as SupabaseClient;
+      vi.mocked(getRepo).mockReturnValue({
+        upsertUserFromSupabase: vi.fn().mockResolvedValue({ role: "admin" }),
+      } as never);
+      const req = createRequest("/admin");
+      const mockResponse = NextResponse.next({ request: req });
+      vi.mocked(refreshSupabaseSession).mockResolvedValue({
+        response: mockResponse,
+        supabase: mockSupabase,
+      });
+
+      const response = await proxy(req);
+
+      expect(response.status).not.toBe(307);
+      expect(response.status).not.toBe(301);
+    });
+
+    it("gates /admin even when AUTH_REQUIRED is false (the app default)", async () => {
+      process.env.AUTH_REQUIRED = "false";
+      resetEnvCache();
+      const { refreshSupabaseSession } = await import("@/lib/supabase/middleware");
+      const req = createRequest("/admin");
+      const mockResponse = NextResponse.next({ request: req });
+      vi.mocked(refreshSupabaseSession).mockResolvedValue({
+        response: mockResponse,
+        supabase: null,
+      });
+
+      const response = await proxy(req);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toContain("/login");
     });
   });
 });

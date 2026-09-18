@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { refreshSupabaseSession } from "@/lib/supabase/middleware";
 import { getEnv } from "@/lib/env";
+import { getRepo } from "@/lib/db";
 
 /**
  * Proxy (Next.js 16; formerly "middleware") that runs on every request to
@@ -10,14 +11,30 @@ import { getEnv } from "@/lib/env";
 export async function proxy(request: NextRequest) {
   const { response, supabase } = await refreshSupabaseSession(request);
   const env = getEnv();
+  const pathname = request.nextUrl.pathname;
+
+  // /admin always requires a logged-in admin, regardless of AUTH_REQUIRED (that flag governs
+  // the anonymous-by-default chat experience; the admin dashboard is never anonymous-friendly).
+  // Per Next's own guidance, this is defense in depth, not the only check -- each admin route
+  // re-verifies role server-side too, since a proxy matcher change could otherwise silently
+  // remove this coverage.
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    const record = await getRepo().upsertUserFromSupabase({ supabaseUserId: user.id });
+    if (record.role !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    return response;
+  }
 
   // If AUTH_REQUIRED is true, check for authenticated user
   if (env.AUTH_REQUIRED) {
     const user = supabase ? (await supabase.auth.getUser()).data.user : null;
 
     if (!user) {
-      const pathname = request.nextUrl.pathname;
-
       // Redirect /chat and /chat/* page requests to /login
       if (pathname === "/chat" || pathname.startsWith("/chat/")) {
         return NextResponse.redirect(new URL("/login", request.url));
