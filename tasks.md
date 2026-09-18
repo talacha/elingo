@@ -421,6 +421,39 @@ export const updateAiConfigSchema = z.object({ key: z.enum(AI_CONFIG_KEYS), valu
 - Sin sesión de Supabase autenticada con un email en `ADMIN_EMAILS`, `401`/`404` (no revela que la ruta existe).
 - Esto no es un agente cambiando el modelo de producción por su cuenta (prohibido en `tasks.md` §4 fuera de T-045): es la vía para que un humano autenticado lo haga sin pasar por Vercel. La responsabilidad de quién tiene acceso vive en `ADMIN_EMAILS`, que un agente nunca rellena con su propio criterio.
 
+### 6.14 Hot-reload del modelo (`T-072` documentación)
+
+**Flujo completo de cambio de modelo en caliente (sin redeploy)**:
+
+1. **Admin se autentica**: Supabase Auth con email en `ADMIN_EMAILS` (ver 6.13).
+2. **Admin abre `/admin`**: Frontend llama a `GET /api/admin/users` y `GET /api/admin/config` para ver el estado actual. El campo `overrides` contiene los cambios guardados hasta ahora (ej. `{ "AI_PROVIDER": "openrouter" }` si se ha cambiado de proveedor).
+3. **Admin cambia el modelo**: Frontend hace `PUT /api/admin/config` con `{ "key": "ANTHROPIC_MODEL", "value": "claude-sonnet-5" }`. El request:
+   - Se valida en el servidor (zod: `key` debe estar en `AI_CONFIG_KEYS`, `value` entre 1-200 chars).
+   - Se guarda en la tabla `app_config` de Neon (o en memoria sin DB): `INSERT INTO app_config (key, value, updated_by, updated_at) VALUES (...) ON CONFLICT (key) DO UPDATE SET value = ..., updated_at = now()`.
+   - Se devuelve `200 { overrides: {...} }` al cliente (el estado íntegro después del cambio).
+4. **Cache de proceso se invalida**: `getProviderWithOverrides()` en `lib/ai/providers/index.ts` mantiene dos cachés:
+   - `overridesCache`: contiene el resultado de `getAiConfig()` de la DB; TTL 30 segundos (`OVERRIDES_TTL_MS`).
+   - `overriddenCache`: contiene el proveedor creado con esos overrides aplicados.
+   - Cuando expira el TTL (30 s) **o** alguien llama a `resetAiConfigOverridesCache()`, la siguiente llamada a `getProviderWithOverrides()` re-consulta la DB.
+5. **Siguiente petición `/api/chat` usa el nuevo modelo**: El handler de chat importa `getProviderWithOverrides` (no `getProvider`), lo que:
+   - Lee el caché de overrides (si aún es fresco, sin ir a BD).
+   - Si hay overrides, crea un proveedor con `effectiveEnv` (env vars + overrides).
+   - Si no hay overrides, delega a `getProvider()` (idéntico al comportamiento sin T-067).
+   - Devuelve la respuesta con cabecera `x-model` reflejando el modelo usado.
+
+**Comportamiento sin `/admin` (caso por defecto)**: Sin cambios. `getProvider()` se usa directamente, `app_config` nunca se consulta, todo sigue siendo gobernado por env vars.
+
+**Fallback graceful**: Si:
+- Neon está caído o `DATABASE_URL` falta (MemoryRepo): `getAiConfig()` lanza, se captura en `getAiConfigOverrides()`, se devuelve `{}` (ningún override), y se comporta como antes.
+- El email en `ADMIN_EMAILS` cambia durante una sesión: la siguiente petición `/api/admin/*` devuelve `404` (el check de `isAdminEmail()` es fresh en cada petición).
+- Un admin intenta poner un valor inválido (ej. un `ANTHROPIC_MODEL` que no existe): se guarda en `app_config`, pero en `/api/chat` el proveedor lanzará un error real (que de por sí es capturado y se devuelve como `upstream_error` amable).
+
+**Datos y auditoría**: La columna `updated_by` en `app_config` guarda el email del admin que hizo el cambio, para auditoría. No hay timestamp de lectura, solo de escritura (`updated_at`).
+
+**Tests**: 
+- `tests/api/admin/config.test.ts`: valida GET (sin auth → 404, con admin → 200 + overrides), PUT (validación zod, guardado idempotente, lectura fresca tras escribir).
+- `tests/ai/providerOverrides.test.ts`: valida que `getProviderWithOverrides()` respeta los overrides en `app_config` y degrada gracefully si falla la lectura de BD.
+
 ## 7. Tabla de estado
 
 Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea** = número de tareas que dependen de esta directa o transitivamente (orientativo).
@@ -474,7 +507,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-045 | M4 | HU | done | T-041, T-042 | 0 | 2026-09-18 · humano · lanzado en `https://eli.ngo`. Verificado en vivo contra los 8 criterios de `north_star.md`: (1) chat funciona en el dominio real — confirmado; (2) primer token rápido — respuesta completa en ~10s, TTFB no medido con precisión; (3) español, negritas y viñetas — confirmado con una conversación real de mates; (4) nunca da la respuesta — confirmado, incluso insistiendo directamente ("dame la respuesta") ELI redirige; (5) historial async en Neon — arquitectura ya cubierta por tests, `GET /api/health` confirma `db: "neon"` en vivo; (6) rate limit activo — `redis: true` en `/api/health` (Upstash real, no memoria), no estresado con 21 peticiones reales; (7) presupuesto acotado — existe (T-042), no agotado a propósito para no interrumpir el lanzamiento; (8) todo sin claves — cubierto continuamente por `pnpm check`/`pnpm smoke` en CI. `GET https://www.eli.ngo/api/health` → `{"ok":true,"provider":"anthropic","model":"claude-fable-5-1","db":"neon","redis":true}` |
 | T-070 | M8 | FE | todo | T-054 | 0 | Arreglar bug del micrófono: `onend` quedaba colgada dejando el botón visualmente en "escuchando"; conversión a base64 en bloques de 8KB para grabaciones largas; verificación de permisos (micrófono activado) |
 | T-071 | M8 | FE | todo | T-023 | 0 | Mostrar modelo activo en el chat: burbuja de sistema inicial o header con "Modelo: claude-fable-5-1" (o el activo según `/api/health` o env); leer de cabecera `x-model` de `/api/chat` |
-| T-072 | M8 | BE | in-progress | T-067 | 0 | in-progress · backend · 2026-09-18 |
+| T-072 | M8 | BE | done | T-067 | 0 | 2026-09-18 · backend · PR #33: nueva sección 6.14 en tasks.md documenta el flujo completo de hot-reload del modelo, caché de proceso (30s TTL), fallbacks graceful (Neon caído, email admin cambiado), auditoría (`updated_by`), y cobertura de tests existentes; validado con `pnpm check` verde (283 tests) |
 | T-073 | M8 | FE | todo | T-031, T-065 | 0 | Flujo end-to-end: signup → login → `/parents` (palabra segura, ajustes, informes) → `/chat` (flags aplicados); test de cámara/micrófono ocultos cuando `allowImages`=false/`allowVoice`=false |
 
 ## 8. Detalle de tareas
