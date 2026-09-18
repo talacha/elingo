@@ -18,6 +18,7 @@ pnpm dev                     # http://localhost:3000
 | `pnpm test` | tests con vitest |
 | `pnpm lint` / `pnpm typecheck` | eslint / `next typegen && tsc --noEmit` |
 | `pnpm format` | prettier |
+| `pnpm db:generate` / `pnpm db:migrate` | genera el SQL de `lib/db/schema.ts` en `drizzle/` / lo aplica a `DATABASE_URL` |
 
 ## Documentación
 
