@@ -4,6 +4,8 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { transcribeAudio } from "@/lib/ai/transcribe";
 import { ANON_COOKIE } from "@/lib/contracts/chat";
 import { chatErrorResponse } from "@/lib/http/errors";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRepo } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -28,6 +30,36 @@ export async function POST(req: NextRequest) {
           issues: parsed.error.issues,
         })
       );
+    }
+
+    // Get authenticated user from Supabase if available
+    const supabase = await createSupabaseServerClient();
+    let userId: string | undefined;
+    if (supabase) {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        const repo = getRepo();
+        const user = await repo.upsertUserFromSupabase({
+          supabaseUserId: data.user.id,
+          displayName: data.user.user_metadata?.display_name,
+        });
+        userId = user.id;
+      }
+    }
+
+    // Enforce voice restrictions: if user is authenticated and disallows voice,
+    // return 204 (same as no API key), so client fallback handling applies.
+    if (userId) {
+      try {
+        const repo = getRepo();
+        const security = await repo.getUserSecurity(userId);
+        if (security && !security.allowVoice) {
+          return new NextResponse(null, { status: 204 });
+        }
+      } catch (error) {
+        // Log error but proceed gracefully (permissive default)
+        console.error("[transcribe] Failed to check user security flags:", error);
+      }
     }
 
     // Get or use existing anonymous cookie for rate limiting

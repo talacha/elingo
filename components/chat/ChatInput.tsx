@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
 import type { Subject, ImageMimeType } from "@/lib/contracts/chat";
+import type { ChatCapabilities } from "@/app/api/chat/capabilities/route";
 import { useSpeechInput } from "./useSpeechInput";
 import { compressImageFile } from "./imageCompress";
 
@@ -24,6 +25,8 @@ interface ChatInputProps {
   onStop: () => void;
   /** Asignatura seleccionada, para personalizar el placeholder. */
   subject?: Subject;
+  /** User capabilities (images, voice, text) from parent. Optional, defaults to all-true. */
+  capabilities?: ChatCapabilities;
 }
 
 function SendIcon() {
@@ -64,9 +67,10 @@ function MicIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M12 1v6m0 0c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5zm0 0v6" />
-      <path d="M4 12a8 8 0 1 0 16 0" />
-      <path d="M12 20v2m4-2h-8" />
+      <path d="M12 2c-1.104 0-2 .896-2 2v8c0 1.104.896 2 2 2s2-.896 2-2V4c0-1.104-.896-2-2-2z" />
+      <path d="M7 12a5 5 0 0 0 10 0" />
+      <path d="M12 18v3" />
+      <path d="M9 21h6" />
     </svg>
   );
 }
@@ -89,7 +93,13 @@ function CameraIcon() {
   );
 }
 
-export function ChatInput({ streaming, onSend, onStop, subject }: ChatInputProps) {
+export function ChatInput({
+  streaming,
+  onSend,
+  onStop,
+  subject,
+  capabilities = { allowImages: true, allowVoice: true, allowText: true },
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const [image, setImage] = useState<{ mediaType: ImageMimeType; data: string } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -181,7 +191,7 @@ export function ChatInput({ streaming, onSend, onStop, subject }: ChatInputProps
         </div>
       )}
 
-      <div className="flex items-end gap-2 rounded-[26px] border-2 border-line bg-surface p-1.5 pl-4 shadow-card transition-colors focus-within:border-sky motion-reduce:transition-none">
+      <div className="flex min-w-0 items-end gap-2 rounded-[26px] border-2 border-line bg-surface p-1.5 pl-4 shadow-card transition-colors focus-within:border-sky motion-reduce:transition-none">
         <label htmlFor="chat-input" className="sr-only">
           Escribe tu mensaje para ELI
         </label>
@@ -197,11 +207,11 @@ export function ChatInput({ streaming, onSend, onStop, subject }: ChatInputProps
           autoComplete="off"
           enterKeyHint="send"
           aria-label="Escribe tu mensaje para ELI"
-          className="min-h-11 flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-ink-soft"
+          className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-ink-soft"
         />
 
         {/* Botón de micrófono */}
-        {speechInput.status !== "unsupported" && (
+        {speechInput.status !== "unsupported" && capabilities.allowVoice && (
           <button
             type="button"
             disabled={streaming}
@@ -222,15 +232,17 @@ export function ChatInput({ streaming, onSend, onStop, subject }: ChatInputProps
         )}
 
         {/* Botón de cámara */}
-        <button
-          type="button"
-          disabled={streaming}
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Adjuntar foto"
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-surface-2 text-ink shadow-lift transition-[background-color,translate] duration-150 ease-out hover:-translate-y-px hover:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-        >
-          <CameraIcon />
-        </button>
+        {capabilities.allowImages && (
+          <button
+            type="button"
+            disabled={streaming}
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Adjuntar foto"
+            className="grid size-11 shrink-0 place-items-center rounded-full bg-surface-2 text-ink shadow-lift transition-[background-color,translate] duration-150 ease-out hover:-translate-y-px hover:bg-surface-3 disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+          >
+            <CameraIcon />
+          </button>
+        )}
         <input
           type="file"
           ref={fileInputRef}

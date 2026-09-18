@@ -1,17 +1,23 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import type { ChatMessage } from "@/lib/contracts/chat";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import type { ChatMessage, Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import { createDb, type Db } from "./client";
 import {
+  aggregateSubjectInsights,
   MAX_SESSIONS,
+  type AdminUserSummary,
   type NewMessage,
   type Repo,
   type RepoScope,
+  type SubjectInsight,
   type SupabaseUserInput,
   type UpsertSessionInput,
+  type UserFlags,
   type UserRecord,
+  type UserSecurity,
 } from "./repo";
 import {
+  appConfig,
   chatSessions,
   messages,
   users,
@@ -126,6 +132,83 @@ export class NeonRepo implements Repo {
       })
       .returning();
     return toUser(row);
+  }
+
+  async getUserSecurity(userId: string): Promise<UserSecurity | null> {
+    const [row] = await this.db
+      .select({
+        safeWordHash: users.safeWordHash,
+        allowImages: users.allowImages,
+        allowVoice: users.allowVoice,
+        allowText: users.allowText,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async setSafeWordHash(userId: string, hash: string): Promise<void> {
+    await this.db.update(users).set({ safeWordHash: hash }).where(eq(users.id, userId));
+  }
+
+  async updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags> {
+    const [row] = await this.db
+      .update(users)
+      .set(patch)
+      .where(eq(users.id, userId))
+      .returning({
+        allowImages: users.allowImages,
+        allowVoice: users.allowVoice,
+        allowText: users.allowText,
+      });
+    if (!row) throw new Error(`users: el usuario ${userId} no existe`);
+    return row;
+  }
+
+  async getSubjectInsights(userId: string): Promise<SubjectInsight[]> {
+    const rows = await this.db
+      .select({
+        subject: chatSessions.subject,
+        sessionId: chatSessions.id,
+        role: messages.role,
+        content: messages.content,
+        createdAt: messages.createdAt,
+      })
+      .from(chatSessions)
+      .innerJoin(messages, eq(messages.sessionId, chatSessions.id))
+      .where(and(eq(chatSessions.userId, userId), isNotNull(chatSessions.subject)));
+    return aggregateSubjectInsights(
+      rows.map((r) => ({ ...r, subject: r.subject as Subject, createdAt: r.createdAt.toISOString() })),
+    );
+  }
+
+  async listAllUsers(): Promise<AdminUserSummary[]> {
+    const rows = await this.db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        role: users.role,
+        createdAt: users.createdAt,
+        sessionCount: sql<number>`count(${chatSessions.id})::int`,
+      })
+      .from(users)
+      .leftJoin(chatSessions, eq(chatSessions.userId, users.id))
+      .groupBy(users.id)
+      .orderBy(desc(users.createdAt));
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  }
+
+  async getAiConfig(): Promise<Record<string, string>> {
+    const rows = await this.db.select({ key: appConfig.key, value: appConfig.value }).from(appConfig);
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  }
+
+  async setAiConfig(key: string, value: string, updatedBy: string): Promise<void> {
+    await this.db
+      .insert(appConfig)
+      .values({ key, value, updatedBy })
+      .onConflictDoUpdate({ target: appConfig.key, set: { value, updatedBy, updatedAt: sql`now()` } });
   }
 }
 

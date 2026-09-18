@@ -1,15 +1,29 @@
 import type { ChatMessage, Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import {
+  aggregateSubjectInsights,
   MAX_SESSIONS,
+  type AdminUserSummary,
   type NewMessage,
   type Repo,
   type RepoScope,
+  type SubjectInsight,
+  type SubjectInsightRow,
   type SupabaseUserInput,
   type UpsertSessionInput,
+  type UserFlags,
   type UserRecord,
+  type UserSecurity,
 } from "./repo";
 import type { MessageRole } from "./schema";
+
+/** M7: UserRecord más los campos que no expone el contrato público de upsertUserFromSupabase. */
+interface MemUser extends UserRecord {
+  safeWordHash: string | null;
+  allowImages: boolean;
+  allowVoice: boolean;
+  allowText: boolean;
+}
 
 interface MemSession {
   id: string;
@@ -41,9 +55,10 @@ interface MemMessage {
  */
 export class MemoryRepo implements Repo {
   readonly kind = "memory" as const;
-  private readonly users = new Map<string, UserRecord>();
+  private readonly users = new Map<string, MemUser>();
   private readonly sessions = new Map<string, MemSession>();
   private readonly messages = new Map<string, MemMessage>();
+  private readonly appConfigStore = new Map<string, string>();
   private seq = 0;
 
   constructor(private readonly now: () => number = Date.now) {}
@@ -124,7 +139,7 @@ export class MemoryRepo implements Repo {
 
   async upsertUserFromSupabase(input: SupabaseUserInput): Promise<UserRecord> {
     const prev = [...this.users.values()].find((u) => u.supabaseUserId === input.supabaseUserId);
-    const row: UserRecord = prev
+    const row: MemUser = prev
       ? {
           ...prev,
           displayName: input.displayName ?? prev.displayName,
@@ -138,9 +153,77 @@ export class MemoryRepo implements Repo {
           grade: input.grade ?? "6º",
           role: input.role ?? "student",
           createdAt: new Date(this.now()).toISOString(),
+          safeWordHash: null,
+          allowImages: true,
+          allowVoice: true,
+          allowText: true,
         };
     this.users.set(row.id, row);
     return row;
+  }
+
+  async getUserSecurity(userId: string): Promise<UserSecurity | null> {
+    const user = this.users.get(userId);
+    if (!user) return null;
+    const { safeWordHash, allowImages, allowVoice, allowText } = user;
+    return { safeWordHash, allowImages, allowVoice, allowText };
+  }
+
+  async setSafeWordHash(userId: string, hash: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error(`users: el usuario ${userId} no existe`);
+    user.safeWordHash = hash;
+  }
+
+  async updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error(`users: el usuario ${userId} no existe`);
+    Object.assign(user, patch);
+    return { allowImages: user.allowImages, allowVoice: user.allowVoice, allowText: user.allowText };
+  }
+
+  async getSubjectInsights(userId: string): Promise<SubjectInsight[]> {
+    const sessionIds = new Set(
+      [...this.sessions.values()].filter((s) => s.userId === userId && s.subject).map((s) => s.id),
+    );
+    const subjectBySession = new Map(
+      [...this.sessions.values()].filter((s) => sessionIds.has(s.id)).map((s) => [s.id, s.subject as Subject]),
+    );
+    const rows: SubjectInsightRow[] = [...this.messages.values()]
+      .filter((m) => sessionIds.has(m.sessionId))
+      .map((m) => ({
+        subject: subjectBySession.get(m.sessionId) as Subject,
+        sessionId: m.sessionId,
+        role: m.role,
+        content: m.content,
+        createdAt: new Date(m.createdAt).toISOString(),
+      }));
+    return aggregateSubjectInsights(rows);
+  }
+
+  async listAllUsers(): Promise<AdminUserSummary[]> {
+    const sessionCountByUser = new Map<string, number>();
+    for (const s of this.sessions.values()) {
+      if (!s.userId) continue;
+      sessionCountByUser.set(s.userId, (sessionCountByUser.get(s.userId) ?? 0) + 1);
+    }
+    return [...this.users.values()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((u) => ({
+        id: u.id,
+        displayName: u.displayName,
+        role: u.role,
+        createdAt: u.createdAt,
+        sessionCount: sessionCountByUser.get(u.id) ?? 0,
+      }));
+  }
+
+  async getAiConfig(): Promise<Record<string, string>> {
+    return Object.fromEntries(this.appConfigStore);
+  }
+
+  async setAiConfig(key: string, value: string): Promise<void> {
+    this.appConfigStore.set(key, value);
   }
 }
 

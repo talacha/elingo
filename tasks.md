@@ -288,6 +288,7 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` | T-052 |
 | `FISH_AUDIO_API_KEY` | vacío → sin voz de Fish Audio (cae a `speechSynthesis` del navegador) | T-053 |
 | `FISH_AUDIO_MODEL` | `s2.1-pro-free` | T-053 |
+| `ADMIN_EMAILS` | vacío → `/admin` inaccesible para cualquiera | T-066 |
 | `AI_MAX_OUTPUT_TOKENS` | `1024` | T-011, T-017 |
 | `AI_WINDOW_PAIRS` | `6` | T-010 |
 | `AI_MAX_INPUT_CHARS` | `1000` | T-017 |
@@ -357,6 +358,69 @@ export declare function synthesizeSpeech(text: string): Promise<{ audio: Readabl
 - Fish Audio (`POST https://api.fish.audio/v1/tts`, cabecera `Authorization: Bearer FISH_AUDIO_API_KEY`, modelo `FISH_AUDIO_MODEL`): solo se le envía el texto ya generado por ELI, nunca la voz ni el texto de la alumna (la política de Fish Audio conserva peticiones para mejorar el modelo).
 - "Escuchar" es una acción explícita por burbuja (T-056), nunca automática: evita sonido inesperado en un dispositivo compartido y gasto innecesario de la API.
 
+### 6.10 Esquema — familias (M7)
+
+```sql
+alter table users add column safe_word_hash text;
+alter table users add column allow_images boolean not null default true;
+alter table users add column allow_voice boolean not null default true;
+alter table users add column allow_text boolean not null default true;
+
+create table app_config (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+```
+
+Sin migración para "informes": se calculan al vuelo desde `chat_sessions`/`messages` agrupando por `subject` (ver 6.11), nada nuevo que persistir ni mantener sincronizado.
+
+### 6.11 Palabra segura, ajustes e informes (`/parents`)
+
+```ts
+// lib/auth/safeWord.ts
+export declare function hashSafeWord(word: string): Promise<string>;   // scrypt + sal, sin dependencia nueva
+export declare function verifySafeWord(word: string, stored: string): Promise<boolean>;
+
+// lib/contracts/parents.ts
+export const setSafeWordRequestSchema = z.object({ safeWord: z.string().min(4).max(60) });
+export const unlockRequestSchema = z.object({ safeWord: z.string().min(1).max(60) });
+export interface ParentSettings { allowImages: boolean; allowVoice: boolean; allowText: boolean }
+export interface SubjectInsight {
+  subject: Subject; sessionCount: number; messageCount: number;
+  answerRequests: number;   // veces que se detectó "dame la respuesta" (mismo heurístico que el mock, T-011)
+  lastActivity: string | null;
+}
+export interface ParentInsightsResponse { hasSafeWord: boolean; settings: ParentSettings; subjects: SubjectInsight[] }
+export const PARENT_UNLOCK_COOKIE = "eli_parent_unlock";
+```
+
+- `POST /api/parents/safe-word` (crea/cambia; exige sesión de Supabase) · `POST /api/parents/unlock` (verifica; si acierta, pone la cookie `eli_parent_unlock`, httpOnly, ~4 h — el token vive en Redis/Upstash si hay credenciales, si no en memoria del proceso, mismo patrón que `lib/ratelimit`) · `GET/PATCH /api/parents/settings` · `GET /api/parents/insights`.
+- Toda ruta de `/api/parents/*` exige sesión de Supabase **y** la cookie de desbloqueo válida y ligada a ese `userId` — sin las dos cosas, `401`.
+- Sin `safeWordHash` todavía, `/parents` pide fijarla antes de mostrar nada (no hay "por defecto sin proteger").
+- No hay cuentas de hijo/a separadas (decisión de producto, ver roadmap M7): los flags y los informes son del único perfil que inicia sesión, en cualquier dispositivo.
+
+### 6.12 Flags en el chat
+
+`/api/chat` (imagen), `/api/speech` (voz) y `/api/transcribe` (voz) leen `allowImages`/`allowVoice`/`allowText` del usuario autenticado (si lo hay) antes de aceptar ese contenido; sin sesión (chat anónimo), se permite todo como hoy — los flags son un control parental sobre una cuenta, no aplican a nadie sin cuenta. Rechazo: mismo `ChatError` con `"invalid_request"` y mensaje amable, nunca un 500.
+
+### 6.13 Administración (`/admin`)
+
+```ts
+// lib/auth/admin.ts
+export declare function isAdminEmail(email: string | null | undefined): boolean;   // contra ADMIN_EMAILS
+
+// lib/contracts/admin.ts
+export interface AdminUserSummary { id: string; displayName: string | null; role: UserRole; createdAt: string; sessionCount: number }
+export const AI_CONFIG_KEYS = ["AI_PROVIDER", "ANTHROPIC_MODEL", "OPENROUTER_MODEL"] as const;
+export const updateAiConfigSchema = z.object({ key: z.enum(AI_CONFIG_KEYS), value: z.string().min(1).max(200) });
+```
+
+- `GET /api/admin/users` (lista) · `GET/PUT /api/admin/config` (overrides de `app_config`, leídos por `getProvider()`/`resolveProvider()` **antes** que las env vars, con caché corta de proceso y fallback silencioso a las env vars si `app_config` no existe o falla la consulta — nunca rompe el chat).
+- Sin sesión de Supabase autenticada con un email en `ADMIN_EMAILS`, `401`/`404` (no revela que la ruta existe).
+- Esto no es un agente cambiando el modelo de producción por su cuenta (prohibido en `tasks.md` §4 fuera de T-045): es la vía para que un humano autenticado lo haga sin pasar por Vercel. La responsabilidad de quién tiene acceso vive en `ADMIN_EMAILS`, que un agente nunca rellena con su propio criterio.
+
 ## 7. Tabla de estado
 
 Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea** = número de tareas que dependen de esta directa o transitivamente (orientativo).
@@ -397,6 +461,16 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-054 | M6 | FE | done | T-052 | 0 | 2026-09-18 · sub-agente frontend (haiku) + orquestador · botón de micrófono en `ChatInput` (`useSpeechInput`): `SpeechRecognition` nativo en español, con fallback a `MediaRecorder` + `/api/transcribe`; nunca envía sin revisión de la alumna. Corregido en revisión: cierre obsoleto en `onend` dejaba el botón visualmente en «escuchando»; conversión a base64 con `String.fromCharCode.apply` podía desbordar en grabaciones largas (ahora troceada en bloques de 8 KB). Corregido en `next.config.ts`: `Permissions-Policy` desactivaba `microphone=()` para todo el origen desde T-041 (antes de que existiera esta función) — ahora `microphone=(self)`, sin lo cual la función jamás habría funcionado en producción. Verificado en navegador (el micrófono real está bloqueado en este entorno de agente, pero el flujo de permisos y los estados se comportan como se espera) |
 | T-055 | M6 | FE | done | T-050 | 0 | 2026-09-18 · sub-agente frontend (haiku) + orquestador · botón de cámara/adjuntar en `ChatInput`, `imageCompress.ts` (canvas, ~1024 px, WebP/JPEG); previsualización con opción de quitar; la burbuja propia de la alumna ahora muestra la foto enviada (hueco de UX real, no estaba en el plan original). Corregido en revisión: el fallback sin `createImageBitmap` cargaba la imagen con `URL.createObjectURL` (`blob:`), que la CSP de `img-src` bloquea — ahora usa un `data:` URL (ya permitido), sin tocar la CSP. Verificado en navegador con una imagen real adjuntada, comprimida, enviada y reconocida por el mock. Cierra N-004 |
 | T-056 | M6 | FE | done | T-053 | 0 | 2026-09-18 · sub-agente frontend (haiku) + orquestador · botón «Escuchar»/«Detener» en burbujas de ELI (`useSpeechOutput`): intenta `/api/speech`, cae a `speechSynthesis` en `204`/fallo. Corregido en revisión: la limpieza al desmontar no se ejecutaba (cerraba sobre un `status` obsoleto). Verificado en navegador de punta a punta con el fallback (sin `FISH_AUDIO_API_KEY` local); el envío real a Fish Audio no se pudo probar sin clave. PR único cierra T-050…T-056; `pnpm check` verde (283 tests) |
+| T-060 | M7 | DO | done | T-020 | 5 | 2026-09-18 · orquestador · esquema M7 en Drizzle con safeWordHash, allowImages/Voice/Text, y tabla appConfig; tests con MemoryRepo en verde |
+| T-061 | M7 | BE | done | T-060, T-032 | 2 | 2026-09-18 · orquestador · palabra segura con crypto.scrypt, POST /api/parents/safe-word y POST /api/parents/unlock con cookie eli_parent_unlock; tests con mocks en verde |
+| T-062 | M7 | BE | done | T-060 | 2 | 2026-09-18 · orquestador · GET/PATCH /api/parents/settings con validación de flags; tests de acceso y validación en verde |
+| T-063 | M7 | BE | done | T-062 | 0 | 2026-09-18 · orquestador · enforced en /api/chat (imagen), /api/speech y /api/transcribe; tests de rechazo de contenido no permitido en verde |
+| T-064 | M7 | BE | done | T-060 | 1 | 2026-09-18 · orquestador · GET /api/parents/insights con heurísticos de "pide respuesta" sin llamadas a IA; tests con datos sintéticos en verde |
+| T-065 | M7 | FE | done | T-061, T-062, T-064 | 0 | 2026-09-18 · orquestador · ParentsDashboard con puerta de palabra segura, panel de ajustes y panel de informes por asignatura; tests en verde |
+| T-066 | M7 | BE | done | T-032 | 1 | 2026-09-18 · orquestador · isAdminEmail() contra ADMIN_EMAILS, GET /api/admin/users con sessionCount; tests de gating en verde |
+| T-067 | M7 | BE | done | T-060, T-066 | 1 | 2026-09-18 · orquestador · GET/PUT /api/admin/config con caché de proceso 30-60s, fallback a env vars si falla; tests de hot reload en verde |
+| T-068 | M7 | FE | done | T-066, T-067 | 0 | 2026-09-18 · orquestador · AdminDashboard con lista de usuarios y selector de proveedor/modelo activo; tests en verde |
+| T-069 | M7 | FE | done | T-063 | 0 | 2026-09-18 · orquestador · ChatView oculta botones de micrófono/cámara según flags; ChatInput respeta capabilities.allowVoice/allowImages; tests en verde |
 | T-045 | M4 | HU | done | T-041, T-042 | 0 | 2026-09-18 · humano · lanzado en `https://eli.ngo`. Verificado en vivo contra los 8 criterios de `north_star.md`: (1) chat funciona en el dominio real — confirmado; (2) primer token rápido — respuesta completa en ~10s, TTFB no medido con precisión; (3) español, negritas y viñetas — confirmado con una conversación real de mates; (4) nunca da la respuesta — confirmado, incluso insistiendo directamente ("dame la respuesta") ELI redirige; (5) historial async en Neon — arquitectura ya cubierta por tests, `GET /api/health` confirma `db: "neon"` en vivo; (6) rate limit activo — `redis: true` en `/api/health` (Upstash real, no memoria), no estresado con 21 peticiones reales; (7) presupuesto acotado — existe (T-042), no agotado a propósito para no interrumpir el lanzamiento; (8) todo sin claves — cubierto continuamente por `pnpm check`/`pnpm smoke` en CI. `GET https://www.eli.ngo/api/health` → `{"ok":true,"provider":"anthropic","model":"claude-fable-5-1","db":"neon","redis":true}` |
 
 ## 8. Detalle de tareas
@@ -573,6 +647,56 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 - **Qué**: botón "Escuchar" en cada burbuja de ELI; intenta `/api/speech` y reproduce el audio devuelto; si responde `204` o falla, usa `window.speechSynthesis` en español. Nunca automático.
 - **Definición de hecho**: con `AI_PROVIDER=mock` y sin `FISH_AUDIO_API_KEY` (como en CI), el botón sigue funcionando vía `speechSynthesis`; `pnpm check` no requiere audio real.
+
+### T-060 · DO · Esquema — familias
+
+- **Qué**: `lib/db/schema.ts` añade `users.safeWordHash`/`allowImages`/`allowVoice`/`allowText` (defaults `true`) y la tabla `appConfig`; `pnpm db:generate` genera y versiona el SQL en `drizzle/`. Ver 6.10.
+- **Definición de hecho**: `MemoryRepo` y `NeonRepo` implementan los mismos métodos nuevos del `Repo` (flags, palabra segura, informes, listado de usuarios, config de IA); tests contra `MemoryRepo` en verde. Aplicar la migración a Neon de producción es un paso humano (`pnpm db:migrate` con `DATABASE_URL` real), no se ejecuta en esta tarea.
+
+### T-061 · BE · Palabra segura y desbloqueo
+
+- **Qué**: `lib/auth/safeWord.ts` (`hashSafeWord`/`verifySafeWord`, `crypto.scrypt` + sal, sin dependencia nueva). `POST /api/parents/safe-word` (crear/cambiar, exige sesión). `POST /api/parents/unlock` (verifica, pone `PARENT_UNLOCK_COOKIE` httpOnly ~4 h; el token se guarda en Redis si hay credenciales, si no en memoria del proceso — mismo patrón que `lib/ratelimit`).
+- **Definición de hecho**: sin `safeWordHash`, `/unlock` responde con un código que la UI interpreta como "fíjala primero"; con clave incorrecta, mensaje amable sin filtrar si la cuenta tiene o no palabra fijada.
+
+### T-062 · BE · Ajustes de la familia (flags)
+
+- **Qué**: `GET/PATCH /api/parents/settings` (`allowImages`/`allowVoice`/`allowText`); exige sesión de Supabase **y** cookie de desbloqueo válida (T-061) ligada al mismo `userId`.
+- **Definición de hecho**: `PATCH` con un flag inválido → `400`; sin desbloqueo → `401`.
+
+### T-063 · BE · Los flags se cumplen en el chat
+
+- **Qué**: `/api/chat` comprueba `allowImages`/`allowText` del usuario autenticado (si lo hay) antes de aceptar `image`/procesar el turno; `/api/speech` y `/api/transcribe` comprueban `allowVoice`. Sin sesión, se permite todo (igual que hoy).
+- **Definición de hecho**: con `allowImages: false`, una imagen adjunta en `/api/chat` responde `400 invalid_request` con mensaje amable, no un 500; anónimo no se ve afectado; tests con usuario autenticado simulado.
+
+### T-064 · BE · Informes por asignatura
+
+- **Qué**: nuevo método del repositorio que agrupa `chat_sessions`/`messages` del usuario por `subject`: número de sesiones, de mensajes, última actividad, y veces que el último mensaje de un turno de la alumna coincide con el heurístico "pide la respuesta" (reutiliza `asksForTheAnswer` de `lib/ai/providers/mock.ts`, exportado). `GET /api/parents/insights` lo expone junto a `hasSafeWord` y `settings`.
+- **Definición de hecho**: sin conversaciones, devuelve listas vacías, no un error; no llama a ningún proveedor de IA (coste cero, todo derivado de datos ya guardados).
+
+### T-065 · FE · Página `/parents`
+
+- **Qué**: puerta de palabra segura (crear si no existe `hasSafeWord`, pedirla si existe) antes de mostrar nada; panel de ajustes (los tres flags) y panel de informes (tarjetas por asignatura). Sin sesión de Supabase, redirige a `/login`.
+- **Definición de hecho**: `pnpm dev` verificado; con `AUTH_REQUIRED=false` y sin sesión, `/parents` no revela ningún dato de otra cuenta.
+
+### T-066 · BE · `ADMIN_EMAILS` y listado de usuarios
+
+- **Qué**: `lib/auth/admin.ts` (`isAdminEmail`, contra `ADMIN_EMAILS`, vacío por defecto → nadie). `GET /api/admin/users` (lista con `sessionCount`).
+- **Definición de hecho**: sin `ADMIN_EMAILS` o con una sesión que no está en la lista, `401`/`404` indistinguible de "no existe"; nunca se acepta un rol guardado en la base de datos como prueba de ser admin (evita que alguien se autoconceda el acceso).
+
+### T-067 · BE · Config de IA en caliente
+
+- **Qué**: `GET/PUT /api/admin/config` sobre la tabla `appConfig` (`AI_PROVIDER`/`ANTHROPIC_MODEL`/`OPENROUTER_MODEL`). `getProvider()`/`resolveProvider()` consultan `appConfig` antes que las env vars, con una caché corta en memoria (p. ej. 30-60 s) para no consultar la base en cada mensaje; si la tabla no existe o la consulta falla, cae a las env vars de siempre sin romper el chat.
+- **Definición de hecho**: con la tabla vacía o sin `DATABASE_URL`, el comportamiento es idéntico al de antes de T-067; un cambio desde `/admin` se refleja en el siguiente mensaje sin redeploy (dentro del margen de la caché).
+
+### T-068 · FE · Página `/admin`
+
+- **Qué**: lista de usuarios, selector de proveedor/modelo activo (llama a T-067). Gateado por `isAdminEmail`; quien no es admin ve un 404, no un aviso de "no tienes permiso" (no delata la ruta).
+- **Definición de hecho**: `pnpm dev` verificado con un email de prueba en `ADMIN_EMAILS`.
+
+### T-069 · FE · `/chat` respeta los flags
+
+- **Qué**: la página de chat lee los ajustes de la cuenta autenticada (si la hay) y oculta el botón de micrófono/cámara en `ChatInput` cuando `allowVoice`/`allowImages` está desactivado, sin romper el chat anónimo (que no tiene ajustes que consultar).
+- **Definición de hecho**: con `allowImages: false` en una cuenta de prueba, el botón de cámara no aparece; sin sesión, el comportamiento no cambia respecto a M6.
 
 ## 9. Bandeja (estado `new`)
 

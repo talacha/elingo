@@ -4,11 +4,17 @@ import { resetRateLimiter } from "@/lib/ratelimit";
 import { resetEnvCache } from "@/lib/env";
 import { ANON_COOKIE } from "@/lib/contracts/chat";
 import type { SpeechRequest } from "@/lib/contracts/media";
+import { getRepo, resetRepo } from "@/lib/db";
 import { NextRequest } from "next/server";
 
 /** Mock synthesizeSpeech to isolate route logic */
 vi.mock("@/lib/ai/speech", () => ({
   synthesizeSpeech: vi.fn(),
+}));
+
+/** Mock Supabase server client */
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: vi.fn(),
 }));
 
 /** Create a valid test request. */
@@ -37,6 +43,8 @@ describe("POST /api/speech", () => {
   beforeEach(async () => {
     resetEnvCache();
     resetRateLimiter();
+    resetRepo();
+    delete process.env.RATE_LIMIT_MAX;
     vi.clearAllMocks();
 
     const speechModule = await import("@/lib/ai/speech");
@@ -46,6 +54,8 @@ describe("POST /api/speech", () => {
   afterEach(() => {
     resetEnvCache();
     resetRateLimiter();
+    resetRepo();
+    delete process.env.RATE_LIMIT_MAX;
   });
 
   describe("input validation", () => {
@@ -297,6 +307,123 @@ describe("POST /api/speech", () => {
       });
       const res2 = await POST(req2);
       expect(res2.status).toBe(429);
+    });
+  });
+
+  describe("user security flags (M7 - voice)", () => {
+    it("allows authenticated user with allowVoice=true to synthesize", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-1",
+        displayName: "Test",
+      });
+      await repo.updateUserFlags(user.id, { allowVoice: true });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-1", email: "a@b.com", user_metadata: { display_name: "Test" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const mockStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.close();
+        },
+      });
+      synthesizeSpeechMock.mockResolvedValue({
+        audio: mockStream,
+        contentType: "audio/mpeg",
+      });
+
+      const req = createNextRequest(createSpeechRequest());
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("returns 204 (unavailable) for authenticated user with allowVoice=false", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-2",
+        displayName: "Test2",
+      });
+      await repo.updateUserFlags(user.id, { allowVoice: false });
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-2", email: "b@b.com", user_metadata: { display_name: "Test2" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const req = createNextRequest(createSpeechRequest());
+      const response = await POST(req);
+      expect(response.status).toBe(204);
+    });
+
+    it("allows anonymous user to synthesize regardless of flags", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      vi.mocked(createSupabaseServerClient).mockResolvedValue(null);
+
+      const mockStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.close();
+        },
+      });
+      synthesizeSpeechMock.mockResolvedValue({
+        audio: mockStream,
+        contentType: "audio/mpeg",
+      });
+
+      const req = createNextRequest(createSpeechRequest());
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+    });
+
+    it("gracefully handles getUserSecurity errors", async () => {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const repo = getRepo();
+      await repo.upsertUserFromSupabase({
+        supabaseUserId: "sb-user-3",
+        displayName: "Test3",
+      });
+      vi.spyOn(repo, "getUserSecurity").mockRejectedValueOnce(new Error("DB error"));
+
+      vi.mocked(createSupabaseServerClient).mockResolvedValue({
+        auth: {
+          getUser: () =>
+            Promise.resolve({
+              data: {
+                user: { id: "sb-user-3", email: "c@b.com", user_metadata: { display_name: "Test3" } },
+              },
+            }),
+        },
+      } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
+
+      const mockStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.close();
+        },
+      });
+      synthesizeSpeechMock.mockResolvedValue({
+        audio: mockStream,
+        contentType: "audio/mpeg",
+      });
+
+      const req = createNextRequest(createSpeechRequest());
+      const response = await POST(req);
+      // Should proceed as if user were anonymous (permissive default)
+      expect(response.status).toBe(200);
     });
   });
 });

@@ -1,3 +1,4 @@
+import { asksForTheAnswer } from "@/lib/ai/providers/mock";
 import type { Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import type { MessageRole, UserRole } from "./schema";
@@ -63,6 +64,80 @@ export type RepoKind = "neon" | "memory";
 /** Máximo de conversaciones que devuelve listSessions (las más recientes). */
 export const MAX_SESSIONS = 50;
 
+/** M7: los tres interruptores que un padre/madre controla desde /parents (tasks.md 6.11). */
+export interface UserFlags {
+  allowImages: boolean;
+  allowVoice: boolean;
+  allowText: boolean;
+}
+
+export interface UserSecurity extends UserFlags {
+  safeWordHash: string | null;
+}
+
+export interface SubjectInsight {
+  subject: Subject;
+  sessionCount: number;
+  messageCount: number;
+  /** Veces que un mensaje de la alumna coincidió con el heurístico "pide la respuesta". */
+  answerRequests: number;
+  lastActivity: string | null;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  displayName: string | null;
+  role: UserRole;
+  createdAt: string;
+  sessionCount: number;
+}
+
+/** Fila cruda (sesión × mensaje) de la que se derivan los SubjectInsight; ver `aggregateSubjectInsights`. */
+export interface SubjectInsightRow {
+  subject: Subject;
+  sessionId: string;
+  role: MessageRole;
+  content: string;
+  createdAt: string;
+}
+
+/**
+ * Agrega filas crudas de sesión/mensaje en `SubjectInsight[]` por asignatura. Pura y compartida por
+ * `NeonRepo`/`MemoryRepo` (tasks.md 6.11): cada una trae sus propias filas con su propio acceso a
+ * datos, pero la aritmética y el heurístico de "pide la respuesta" viven en un solo sitio.
+ */
+export function aggregateSubjectInsights(rows: readonly SubjectInsightRow[]): SubjectInsight[] {
+  interface Bucket {
+    sessions: Set<string>;
+    messages: number;
+    answerRequests: number;
+    lastActivity: string | null;
+  }
+  const bySubject = new Map<Subject, Bucket>();
+  for (const row of rows) {
+    const bucket = bySubject.get(row.subject) ?? {
+      sessions: new Set<string>(),
+      messages: 0,
+      answerRequests: 0,
+      lastActivity: null,
+    };
+    bucket.sessions.add(row.sessionId);
+    if (row.role !== "system") bucket.messages += 1;
+    if (row.role === "user" && asksForTheAnswer(row.content)) bucket.answerRequests += 1;
+    if (!bucket.lastActivity || row.createdAt > bucket.lastActivity) bucket.lastActivity = row.createdAt;
+    bySubject.set(row.subject, bucket);
+  }
+  return [...bySubject.entries()]
+    .map(([subject, b]) => ({
+      subject,
+      sessionCount: b.sessions.size,
+      messageCount: b.messages,
+      answerRequests: b.answerRequests,
+      lastActivity: b.lastActivity,
+    }))
+    .sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""));
+}
+
 export interface Repo {
   /** Para /api/health (T-042): `db: "neon" | "memory"`. */
   readonly kind: RepoKind;
@@ -79,4 +154,19 @@ export interface Repo {
   getSession(id: string, scope: RepoScope): Promise<SessionDetailResponse | null>;
   /** Crea o actualiza el usuario ligado a Supabase (T-032); solo actualiza los campos que llegan. */
   upsertUserFromSupabase(input: SupabaseUserInput): Promise<UserRecord>;
+
+  /** M7: palabra segura + flags; null si el usuario no existe. */
+  getUserSecurity(userId: string): Promise<UserSecurity | null>;
+  /** M7: fija/cambia el hash (ya calculado por `lib/auth/safeWord.ts`; el repo nunca hashea). */
+  setSafeWordHash(userId: string, hash: string): Promise<void>;
+  /** M7: actualiza solo los flags que llegan; devuelve el estado final de los tres. */
+  updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags>;
+  /** M7: informe por asignatura del usuario, derivado de sus propias sesiones/mensajes. */
+  getSubjectInsights(userId: string): Promise<SubjectInsight[]>;
+  /** M7 admin: todas las cuentas, más reciente primero. */
+  listAllUsers(): Promise<AdminUserSummary[]>;
+  /** M7 admin: overrides activos de `app_config` (vacío = todo por env vars). */
+  getAiConfig(): Promise<Record<string, string>>;
+  /** M7 admin: guarda un override; `updatedBy` es el email del admin, para auditoría. */
+  setAiConfig(key: string, value: string, updatedBy: string): Promise<void>;
 }

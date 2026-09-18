@@ -20,6 +20,7 @@
 | M4 Producción | `https://eli.ngo` operativo y vigilado | Dominio activo; `/api/health` ok; presupuesto diario; e2e en CI; checklist firmada | T-040 … T-045 |
 | M5 Extras | Valor añadido tras la demo | — | Bandeja de `tasks.md` (estado `new`) |
 | M6 Multimodal | Voz e imagen en el chat, arquitectura simple | PR único fusionado; `/chat` acepta voz e imagen con fallback local | T-050 … T-056 |
+| M7 Familias y administración | Panel de padres con palabra segura, flags por familia, panel de administración | PR único fusionado; `/parents` y `/admin` funcionan y `/chat` respeta los flags | T-060 … T-069 |
 
 ## M0 — Bootstrap (secuencial)
 
@@ -104,6 +105,22 @@ Historial para padres, selector de asignatura persistente, rachas, foto del prob
 **Nota de proceso**: a diferencia de M1-M5, este hito se ejecuta en **una sola rama y un solo PR** (`agent/M6-multimodal`) por instrucción directa del humano, con sub-agentes en modelos económicos escribiendo tramos disjuntos del código bajo supervisión, en vez del enjambre habitual de un agente/rama/PR por tarea.
 
 **Riesgo principal**: los modelos gratuitos de OpenRouter (DeepSeek V4 Flash, Ling 3.0 Flash VL) y la ventana gratuita de Fish Audio pueden cambiar límites, precio o desaparecer sin aviso — OpenRouter lo advierte explícitamente para sus modelos `:free`. Mitigación: todo es configurable por variable de entorno con fallback local (`speechSynthesis`, `SpeechRecognition`, mock); la producción no depende de que ninguno de ellos siga gratis.
+
+## M7 — Familias y administración (mixto)
+
+**Objetivo**: quien se registra puede fijar una "palabra segura" que protege `/parents` (informes de progreso por asignatura y los flags `allowImages`/`allowVoice`/`allowText` del chat); `/admin`, accesible solo a `ADMIN_EMAILS`, permite ver usuarios y cambiar el proveedor/modelo de IA en caliente sin redeploy.
+
+**Decisión de producto** (aclarada con el humano antes de empezar): no hay cuentas de hijo/a separadas. Un único perfil por familia — quien se registra inicia sesión en cualquier dispositivo (tablet, móvil, portátil) y usa esa misma sesión para estudiar; la palabra segura es solo la puerta para entrar en `/parents` a ver informes y cambiar ajustes, no una segunda cuenta.
+
+| Carril | Tareas |
+|---|---|
+| DO | T-060 esquema: `users.safeWordHash`/`allowImages`/`allowVoice`/`allowText`, tabla `app_config` (config de IA en caliente) |
+| BE | T-061 palabra segura (hash/verifica, `crypto.scrypt`, sin dependencia nueva) + desbloqueo de sesión → T-062 ajustes (flags) → T-063 los flags se hacen cumplir en `/api/chat`, `/api/speech`, `/api/transcribe` → T-064 informes heurísticos por asignatura (sin llamadas nuevas a IA) → T-066 `ADMIN_EMAILS` + listar usuarios → T-067 config de IA en caliente (`app_config`, con fallback seguro a las env vars si falla) |
+| FE | T-065 página `/parents` (puerta + ajustes + informes) → T-068 página `/admin` (usuarios + selector de proveedor/modelo) → T-069 `/chat` oculta micrófono/cámara según los flags |
+
+**Criterio de salida**: con `SUPABASE_*` configurado, alguien se registra, fija su palabra segura, entra en `/parents`, ve un resumen por asignatura y apaga "permitir imágenes"; `/chat` deja de mostrar el botón de cámara para esa cuenta; una cuenta en `ADMIN_EMAILS` entra en `/admin` y cambia el modelo activo sin tocar Vercel. Todo sigue funcionando sin ninguna clave nueva (sin Supabase, `/parents` y `/admin` no son alcanzables y el chat anónimo sigue igual que hoy).
+
+**Riesgos**: primera migración de esquema desde T-020; se genera y versiona con `drizzle-kit generate` pero aplicarla a Neon de producción (`pnpm db:migrate` con el `DATABASE_URL` real) es un paso humano, no se ejecuta aquí. El "config de IA en caliente" de T-067 nunca sustituye la restricción de `tasks.md` §4 sobre cambiar el modelo de producción fuera de T-045: es human-in-the-loop por diseño (un admin autenticado decide, no un agente).
 
 ## Grafo de dependencias
 

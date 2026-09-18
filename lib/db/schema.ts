@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { SUBJECTS } from "@/lib/contracts/chat";
 
 /**
@@ -23,9 +23,23 @@ export const users = pgTable(
     grade: text("grade").notNull().default("6º"),
     role: text("role", { enum: USER_ROLES }).notNull().default("student"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
+    /** M7: hash (scrypt + sal) de la palabra segura que protege /parents; null = aún no la fijó. */
+    safeWordHash: text("safe_word_hash"),
+    allowImages: boolean("allow_images").notNull().default(true),
+    allowVoice: boolean("allow_voice").notNull().default(true),
+    allowText: boolean("allow_text").notNull().default(true),
   },
   (t) => [check("users_role_check", sql`${t.role} in ('student', 'parent')`)],
 );
+
+/** M7: config de IA en caliente que un admin cambia desde /admin (tasks.md 6.13). Vacía = todo por env vars. */
+export const appConfig = pgTable("app_config", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+});
+export type AppConfigRow = typeof appConfig.$inferSelect;
 
 export const chatSessions = pgTable(
   "chat_sessions",
