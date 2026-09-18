@@ -291,8 +291,8 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | vacío → rate limit en memoria | T-021, T-042 |
 | `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW` | `20`, `10 m` | T-021 |
 | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | vacío → persistencia inline | T-022 |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | vacío → modo anónimo | T-030 |
-| `SUPABASE_SERVICE_ROLE_KEY` | vacío (solo servidor) | T-032 |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | vacío → modo anónimo; caen a `NEXT_PUBLIC_ELI_SUPABASE_URL`/`NEXT_PUBLIC_ELI_SUPABASE_ANON_KEY` si la integración de Supabase del Marketplace las instaló con ese prefijo (igual que `eli_DATABASE_URL`, N-010) | T-030 |
+| `SUPABASE_SERVICE_ROLE_KEY` | vacío (solo servidor); cae a `ELI_SUPABASE_SERVICE_ROLE_KEY` | T-032 |
 | `AUTH_REQUIRED` | `false` | T-030, T-032 |
 | `DAILY_TOKEN_BUDGET` | `2000000` | T-042 |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | T-022, T-041 |
@@ -496,3 +496,4 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-T014-2 | Resuelto (M1): `next dev` (Next 16) añade un bloque `nextjs-agent-rules` a `CLAUDE.md` en cada arranque; se commiteó una vez en `milestone/m1` (el propio bloque indica que esto mantiene el árbol limpio) en vez de evitarlo | T-014 |
 | N-T030-1 | Resuelto (M3): `middleware.ts` renombrado a `proxy.ts` y la función exportada de `middleware` a `proxy` (Next.js 16 deprecó la convención `middleware`); actualizadas las referencias en la sección 3, T-030, T-032, `CLAUDE.md` y `.claude/agents/data-ops.md` | T-030 |
 | N-T044-1 | Considerar exigir el job `e2e` como requerido en el ruleset de `main` una vez que sea estable y ejecute consistentemente en CI | T-044 |
+| N-T030-2 | Resuelto: `lib/supabase/client.ts` (código de navegador) leía las variables `NEXT_PUBLIC_SUPABASE_*` a través de `getEnv()`, que enumera `process.env` dinámicamente — Next.js solo inlinea en el bundle del navegador las referencias *literales* `process.env.NEXT_PUBLIC_X`, no una lectura dinámica como esa (la propia documentación de Next.js pone justo ese patrón como ejemplo de lo que *no* se inlinea). El login nunca habría funcionado en producción aunque las variables estuvieran bien puestas. `client.ts` ahora lee `process.env.NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` de forma literal, con fallback a los nombres `NEXT_PUBLIC_ELI_SUPABASE_*` que instala la integración de Supabase del Marketplace de Vercel (mismo problema que `eli_DATABASE_URL` con Neon, N-010); `getEnv()` en `lib/env.ts` gana el mismo fallback para el lado servidor. **Lección para el futuro**: cualquier variable `NEXT_PUBLIC_*` nueva que se vaya a leer desde un componente cliente necesita acceso literal a `process.env.NEXT_PUBLIC_X` en ese archivo — no sirve pasarla por `getEnv()` | T-030 |
