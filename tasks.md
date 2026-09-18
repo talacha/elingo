@@ -303,7 +303,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | ID | Hito | Rol | Estado | Depende de | Desbloquea | Resultado |
 |---|---|---|---|---|---|---|
 | T-000 | M0 | HU | todo | — | 0 | |
-| T-001 | M0 | BE | in-progress | — | 26 | in-progress · BE · 2026-09-17 |
+| T-001 | M0 | BE | todo | — | 26 | Intento del 2026-09-17 interrumpido: scaffold sin commitear en `.claude/worktrees/agent-aa772a8fec347c2b5` (solo referencia); lock liberado |
 | T-002 | M0 | DO | todo | T-001 | 15 | |
 | T-010 | M1 | BE | todo | T-001 | 9 | |
 | T-011 | M1 | BE | todo | T-010 | 8 | |
@@ -311,7 +311,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-013 | M1 | FE | todo | T-001 | 6 | |
 | T-014 | M1 | FE | todo | T-013 | 5 | |
 | T-015 | M1 | FE | todo | T-014 | 2 | |
-| T-016 | M1 | DO | todo | T-002 | 3 | |
+| T-016 | M1 | DO | todo | T-002 | 3 | Proyecto creado a mano el 2026-09-17: `elingo/elingo` (team `elingo`), conectado a GitHub, producción https://elingo-elingo.vercel.app; queda lo indicado en el detalle |
 | T-017 | M1 | BE | todo | T-012 | 2 | |
 | T-018 | M1 | BE | todo | T-012, T-014 | 1 | |
 | T-019 | M1 | BE | todo | T-011 | 0 | |
@@ -341,7 +341,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 - **Archivos**: `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `next.config.ts`, `eslint.config.mjs`, `.prettierrc`, `vitest.config.ts`, `postcss.config.mjs`, `app/layout.tsx`, `app/page.tsx` (placeholder "Hola, soy ELI"), `app/globals.css`, `lib/env.ts`, `lib/contracts/{chat,ai,ratelimit,queue,sessions}.ts`, `lib/ratelimit/index.ts` (stub en memoria), `lib/queue/index.ts` (stub inline no-op), `.env.example`, `vercel.json`, `.gitignore` (incluye `.vercel`, `.env*.local`), `README.md`, `tests/contracts.test.ts`.
 - **Definición de hecho**: `pnpm install && pnpm check` en verde desde limpio; `pnpm dev` sirve `/`; scripts `dev`, `build`, `start`, `lint` (`eslint .`; Next 16 ya no trae `next lint`), `typecheck` (`tsc --noEmit`), `test` (`vitest run`), `check`; `engines.node >= 24` y sin APIs exclusivas de Node 26; `.env.example` con todas las variables de la sección 6.6 comentadas; `lib/env.ts` con zod y valores por defecto; `lib/contracts/*` compila y exporta exactamente los tipos de la sección 6; `vercel.json` mínimo válido (`{ "framework": "nextjs" }`); README con cómo arrancar.
 - **Verificación**: `pnpm check`.
-- **Notas**: `create-next-app` rehúsa directorios con archivos ajenos; scaffoldea en `./tmp-scaffold` (`pnpm dlx create-next-app@latest tmp-scaffold --ts --app --tailwind --eslint --no-src-dir --import-alias "@/*" --use-pnpm --yes`), mueve el contenido a la raíz y borra el temporal. Integra con `git push origin HEAD:main` (única excepción del protocolo) y avisa al orquestador de que haga `git pull`.
+- **Notas**: `create-next-app` rehúsa directorios con archivos ajenos; scaffoldea en `./tmp-scaffold` (`pnpm dlx create-next-app@latest tmp-scaffold --ts --app --tailwind --eslint --no-src-dir --import-alias "@/*" --use-pnpm --yes`), mueve el contenido a la raíz y borra el temporal. Integra con `git push origin HEAD:main` (única excepción del protocolo) y avisa al orquestador de que haga `git pull`. El repo ya sirve una landing estática (`index.html` + `vercel.json` con `framework: null`): al scaffoldear, sustituye `vercel.json` por `{ \"framework\": \"nextjs\" }`, mueve `index.html` a `public/landing.html` y añade en `next.config.ts` un rewrite `beforeFiles` de `/` a `/landing.html`, de modo que la portada siga viva hasta T-013.
 
 ### T-002 · DO · CI y reglas de merge
 - **Archivos**: `.github/workflows/ci.yml`, `.github/pull_request_template.md`.
@@ -367,7 +367,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 ### T-013 · FE · Diseño base y landing
 - **Archivos**: `app/globals.css` (tokens con `@theme` de Tailwind 4: fondo crema cálido, primario coral, acento turquesa, tinta oscura; radios grandes; escala tipográfica legible), `app/layout.tsx` (fuente legible vía `next/font/google`, por ejemplo Nunito; `lang="es"`; metadatos), `app/page.tsx` (landing: "Hola, soy ELI" + qué hace + botón "Empezar" → `/chat`), `components/ui/*` (Button, Card).
-- **Definición de hecho**: móvil primero, contraste AA, sin scroll horizontal, `pnpm check` verde. Nada de librerías de componentes pesadas.
+- **Definición de hecho**: móvil primero, contraste AA, sin scroll horizontal, `pnpm check` verde. Nada de librerías de componentes pesadas. Sustituye el puente de `public/landing.html` (rewrite de `/`) por `app/page.tsx`, reutilizando su contenido, colores y tipografías, y elimina el rewrite y el archivo estático.
 - **Verificación**: `pnpm dev` y revisión en 375 px y 1280 px.
 
 ### T-014 · FE · UI de chat con streaming
@@ -380,11 +380,11 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 - **Definición de hecho**: chips "Mates", "Lengua", "Ciencias" que fijan `subject` y sugieren una plantilla en el input; render seguro de markdown ligero (negritas, viñetas, saltos de línea; sin HTML crudo; por ejemplo `react-markdown` sin plugins de HTML); estado vacío con bienvenida y 3 ejemplos; estados de error y carga; `aria-live="polite"` en el stream; foco correcto; input fijado abajo con `100dvh` en móvil.
 - **Verificación**: `pnpm dev` en móvil (375 px) con teclado virtual; `pnpm check`.
 
-### T-016 · DO · Proyecto en Vercel y primer preview
-- **Archivos**: ninguno versionado (`.vercel/` está ignorado); anota la URL en Resultado.
-- **Definición de hecho**: proyecto `eli` en el equipo `rob-cr-apps` (`vercel project add eli` + `vercel link --project eli --yes`); `vercel git connect` (si exige instalar la app de GitHub, anótalo como paso humano y sigue); `AI_PROVIDER=mock` en `preview` y `production` (`printf mock | vercel env add AI_PROVIDER preview`); `vercel deploy` desde la rama y URL de preview funcionando.
-- **Verificación**: abrir la URL de preview y ver la landing (y el chat cuando T-014 esté en `main`).
-
+### T-016 · DO · Proyecto en Vercel y entornos
+- **Estado de partida**: el proyecto **ya existe**: `elingo/elingo` en el team `elingo` (CLI autenticado en ese scope; `vercel link --yes --scope elingo --project elingo`), conectado a `github.com/talacha/elingo` (cada push a `main` despliega producción y cada PR un preview). Producción: https://elingo-elingo.vercel.app. Hoy sirve la landing estática (`index.html` + `vercel.json` con `framework: null`). **No crees otro proyecto.**
+- **Archivos**: ninguno versionado (`.vercel/` está ignorado); anota URLs en Resultado.
+- **Definición de hecho**: `AI_PROVIDER=mock` en `preview` y `production` (`printf mock | vercel env add AI_PROVIDER preview`, ídem `production`) hasta que T-045 lo cambie; un PR de prueba genera un preview verde; la protección de despliegues (Vercel Authentication) queda en "Standard Protection" (producción pública, previews protegidos) o como decida el humano: anótalo, no lo cambies.
+- **Verificación**: abrir la URL de producción y el preview del PR más reciente.
 ### T-017 · BE · Guardas de coste
 - **Archivos**: `lib/ai/log.ts`, ajustes en `app/api/chat/route.ts` y `lib/ai/service.ts`, `tests/ai/log.test.ts`.
 - **Definición de hecho**: rechazo `400` amable si el último mensaje supera `AI_MAX_INPUT_CHARS`; `max_tokens` desde `AI_MAX_OUTPUT_TOKENS`; una línea de log JSON por petición `{ event: "chat", sessionId, provider, model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, latencyMs, ttfbMs, stopReason }` sin contenido de mensajes.
