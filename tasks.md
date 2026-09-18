@@ -308,7 +308,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-010 | M1 | BE | done | T-001 | 9 | 2026-09-17 · backend · PR #4 (auto-merge): `lib/ai/prompt.ts` (`ELI_SYSTEM_PROMPT` literal de `north_star.md` + `REFUSAL_MESSAGE`; test contra copia literal y contra el documento) y `lib/ai/window.ts` (`slidingWindow`: últimos N pares completos + pregunta pendiente, empieza siempre por `user`, trata `pairs = 0` y listas cortas, no muta la entrada); sin cambios de contrato ni de env; `pnpm check` verde |
 | T-011 | M1 | BE | todo | T-010 | 8 | |
 | T-012 | M1 | BE | todo | T-011 | 6 | |
-| T-013 | M1 | FE | todo | T-001 | 6 | |
+| T-013 | M1 | FE | in-progress | T-001 | 6 | in-progress · frontend · 2026-09-17 |
 | T-014 | M1 | FE | todo | T-013 | 5 | |
 | T-015 | M1 | FE | todo | T-014 | 2 | |
 | T-016 | M1 | DO | todo | T-002 | 3 | Proyecto creado a mano el 2026-09-17: `elingo/elingo` (team `elingo`), conectado a GitHub, producción https://elingo-elingo.vercel.app; queda lo indicado en el detalle |
