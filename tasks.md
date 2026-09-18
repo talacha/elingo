@@ -16,9 +16,9 @@ En la práctica: elige la única tarea que más acerque al objetivo de `north_st
 
 ### Paso 2 — Elegir la tarea
 Candidatas: filas de la sección 7 con estado `todo` cuyas dependencias estén todas `done` (o no tengan). Las tareas `HU` son del humano: nunca las tomes. Orden de prioridad:
-1. Mayor valor en la columna **Desbloquea** (número de tareas que dependen de ella directa o transitivamente; recalcúlalo si la tabla cambió).
-2. Hito más temprano (M0 < M1 < M2 < M3 < M4).
-3. Tarea de tu rol antes que de otro. Solo tomas una tarea de otro rol si ninguna de tu rol está desbloqueada.
+1. Tareas de **tu rol**. Solo tomas una de otro rol si ninguna de tu rol está desbloqueada (así los tres carriles avanzan en paralelo y no compiten por la misma tarea).
+2. Mayor valor en la columna **Desbloquea** (número de tareas que dependen de ella directa o transitivamente; recalcúlalo si la tabla cambió).
+3. Hito más temprano (M0 < M1 < M2 < M3 < M4).
 4. ID más bajo.
 
 Si no hay candidatas: informa "sin tareas desbloqueadas para <rol>", lista qué las bloquea y para.

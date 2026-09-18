@@ -12,7 +12,7 @@ ELI es un tutor socrático por IA para 6º de primaria. Web Next.js 16 (App Rout
 
 > Pick the single highest-leverage next step toward the goal and execute it, then update tasks.md.
 
-En concreto: elige una tarea `todo` desbloqueada (mayor "Desbloquea" → hito más temprano → tu rol → ID más bajo), crea y publica la rama `agent/T-0xx-<slug>` (es el lock), impleméntala con tests, `pnpm check` en verde, actualiza tu fila en `tasks.md`, abre PR y `gh pr merge --auto --squash --delete-branch`, espera al merge, informa y para. Los siete pasos exactos están en la sección 1 de `tasks.md`.
+En concreto: elige una tarea `todo` desbloqueada (tu rol primero → mayor "Desbloquea" → hito más temprano → ID más bajo), crea y publica la rama `agent/T-0xx-<slug>` (es el lock), impleméntala con tests, `pnpm check` en verde, actualiza tu fila en `tasks.md`, abre PR y `gh pr merge --auto --squash --delete-branch`, espera al merge, informa y para. Los siete pasos exactos están en la sección 1 de `tasks.md`.
 
 ## Comandos
 
