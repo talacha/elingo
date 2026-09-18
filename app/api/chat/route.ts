@@ -1,21 +1,32 @@
-import { NextRequest } from "next/server";
-import { chatRequestSchema } from "@/lib/contracts/chat";
+import { NextRequest, NextResponse, after } from "next/server";
+import { chatRequestSchema, ANON_COOKIE, CHAT_HEADERS } from "@/lib/contracts/chat";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
 import { getEnv, resolveProvider } from "@/lib/env";
 import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
+import { getProvider } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+/** Extract client IP from x-forwarded-for header or return a fallback. */
+function getClientIp(req: NextRequest): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  // Fallback for local development
+  return "127.0.0.1";
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const parsed = chatRequestSchema.safeParse(body);
-    
+
     if (!parsed.success) {
-      return Response.json(
+      return NextResponse.json(
         { error: "invalid_request", message: "Cuerpo inválido", issues: parsed.error.issues },
         { status: 400 }
       );
@@ -27,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Input cost guard: check last message length
     const lastMessage = messages.at(-1);
     if (lastMessage && lastMessage.content.length > env.AI_MAX_INPUT_CHARS) {
-      return Response.json(
+      return NextResponse.json(
         {
           error: "invalid_request",
           message: `Tu mensaje es demasiado largo. Usa menos de ${env.AI_MAX_INPUT_CHARS} caracteres.`,
@@ -36,11 +47,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rate limit check
-    const key = sessionId;
-    const limit = await checkRateLimit(key);
+    // Get or create the anonymous cookie
+    let anonId = req.cookies.get(ANON_COOKIE)?.value;
+    let setCookie = false;
+    if (!anonId) {
+      anonId = crypto.randomUUID();
+      setCookie = true;
+    }
+
+    // Rate limit key: userId ?? anonId ?? ip (no userId yet in T-023)
+    const rateLimitKey = anonId || getClientIp(req);
+    const limit = await checkRateLimit(rateLimitKey);
     if (!limit.ok) {
-      return Response.json(
+      const response = NextResponse.json(
         {
           error: "rate_limited",
           message: "Demasiadas peticiones. Intenta más tarde.",
@@ -48,43 +67,82 @@ export async function POST(req: NextRequest) {
         },
         { status: 429, headers: { "Retry-After": String(Math.ceil((limit.resetAt - Date.now()) / 1000)) } }
       );
+      if (setCookie) {
+        response.cookies.set(ANON_COOKIE, anonId, {
+          httpOnly: true,
+          maxAge: 365 * 24 * 60 * 60, // 1 year in seconds
+          path: "/",
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+        });
+      }
+      return response;
     }
 
     // Stream the AI response
     const { stream, done } = await streamTutorReply({ sessionId, messages, subject });
 
-    // Prepare response headers
+    // Get the provider and model upfront for the header
     const provider = resolveProvider(env);
-    const response = new Response(stream, {
+    const providerInstance = getProvider(env);
+    const modelName = providerInstance.model;
+
+    // Create streaming response with proper headers
+    const response = new NextResponse(stream, {
       status: 200,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "x-session-id": sessionId,
-        "x-provider": provider,
+        [CHAT_HEADERS.sessionId]: sessionId,
+        [CHAT_HEADERS.provider]: provider,
+        [CHAT_HEADERS.model]: modelName,
       },
     });
 
-    // Fire-and-forget: persist to DB and log after streaming completes
-    done.then((result) => {
-      // Log the chat event (no PII)
-      const logEvent = createChatLogEvent(sessionId, provider, result);
-      logChatEvent(logEvent);
-
-      // Persist the full message history
-      void enqueuePersist({
-        sessionId,
-        subject,
-        messages: [
-          ...messages,
-          { id: crypto.randomUUID(), role: "assistant", content: "", tokensIn: result.usage.inputTokens, tokensOut: result.usage.outputTokens, model: result.model },
-        ],
+    // Set the anonymous cookie if it was newly created
+    if (setCookie) {
+      response.cookies.set(ANON_COOKIE, anonId, {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60, // 1 year in seconds
+        path: "/",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
       });
-    }).catch(console.error);
+    }
+
+    // Schedule persistence work to run after response is sent
+    after(async () => {
+      try {
+        // Log the chat event (no PII)
+        const result = await done;
+        const logEvent = createChatLogEvent(sessionId, provider, result);
+        logChatEvent(logEvent);
+
+        // Persist the full message history with anonId
+        await enqueuePersist({
+          sessionId,
+          anonId,
+          subject,
+          messages: [
+            ...messages,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: "",
+              tokensIn: result.usage.inputTokens,
+              tokensOut: result.usage.outputTokens,
+              model: result.model,
+            },
+          ],
+        });
+      } catch (error) {
+        console.error("[chat] Failed to persist session:", error);
+      }
+    });
 
     return response;
   } catch (error) {
     console.error("Chat error:", error);
-    return Response.json(
+    return NextResponse.json(
       { error: "upstream_error", message: "Error al procesar tu solicitud. Intenta de nuevo." },
       { status: 500 }
     );

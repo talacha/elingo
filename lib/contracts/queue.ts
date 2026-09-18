@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { chatMessageSchema, SUBJECTS } from "./chat";
 import type { ChatMessage, Subject } from "./chat";
 
 /** Contrato de la cola de persistencia. Fuente de verdad: tasks.md, sección 6.3. */
@@ -15,3 +17,21 @@ export interface PersistJob {
   /** Historial completo de la conversación; la persistencia es idempotente por message.id. */
   messages: PersistedMessage[];
 }
+
+/**
+ * Valida el body de POST /api/jobs/persist. Ese endpoint recibe peticiones de red
+ * (QStash, o directas si no hay firma configurada), así que su entrada no es de confianza.
+ */
+export const persistedMessageSchema = chatMessageSchema.extend({
+  tokensIn: z.number().optional(),
+  tokensOut: z.number().optional(),
+  model: z.string().optional(),
+});
+
+export const persistJobSchema = z.object({
+  sessionId: z.string().uuid(),
+  userId: z.string().optional(),
+  anonId: z.string().optional(),
+  subject: z.enum(SUBJECTS).optional(),
+  messages: z.array(persistedMessageSchema).min(1),
+});

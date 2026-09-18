@@ -66,6 +66,12 @@ export interface TutorChat {
   /** Detiene el turno en curso conservando lo que ELI haya dicho ya. */
   stop(): void;
   setSubject(subject: Subject | undefined): void;
+  /** Carga un historial de mensajes desde una sesión guardada. */
+  loadMessages(messages: ChatMessage[], subject?: Subject): void;
+  /** Inicia una nueva conversación: nuevo sessionId y limpia el historial. */
+  newSession(): void;
+  /** Obtiene el sessionId actual. */
+  getSessionId(): string;
 }
 
 export const CHAT_ENDPOINT = "/api/chat";
@@ -322,6 +328,26 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     return run(state.messages);
   };
 
+  const loadMessages = (messages: ChatMessage[], subject?: Subject) => {
+    setState({ messages, status: "idle", error: null, subject: subject ?? state.subject });
+  };
+
+  const newSession = () => {
+    controller?.abort();
+    sessionId = null;
+    // Generar nuevo UUID y guardarlo en storage
+    const newId = uuid();
+    const storage = options.storage === undefined ? defaultStorage() : options.storage;
+    try {
+      storage?.setItem(SESSION_STORAGE_KEY, newId);
+    } catch {
+      // Sin almacenamiento: la sesión vive mientras dure la página.
+    }
+    setState({ messages: [], status: "idle", error: null, subject: options.subject });
+  };
+
+  const getSessionId = (): string => ensureSessionId();
+
   return {
     getState: () => state,
     subscribe: (listener) => {
@@ -334,6 +360,9 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     retry,
     stop: () => controller?.abort(),
     setSubject: (subject) => setState({ subject }),
+    loadMessages,
+    newSession,
+    getSessionId,
   };
 }
 
@@ -360,5 +389,8 @@ export function useTutorChat(options?: TutorChatOptions) {
     retry: chat.retry,
     stop: chat.stop,
     setSubject: chat.setSubject,
+    loadMessages: chat.loadMessages,
+    newSession: chat.newSession,
+    getSessionId: chat.getSessionId,
   };
 }
