@@ -315,7 +315,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-017 | M1 | BE | todo | T-012 | 2 | |
 | T-018 | M1 | BE | todo | T-012, T-014 | 1 | |
 | T-019 | M1 | BE | todo | T-011 | 0 | |
-| T-020 | M2 | DO | todo | T-002 | 5 | |
+| T-020 | M2 | DO | in-progress | T-002 | 5 | in-progress · data-ops · 2026-09-17 |
 | T-021 | M2 | DO | todo | T-002 | 3 | |
 | T-022 | M2 | DO | todo | T-020 | 1 | |
 | T-023 | M2 | BE | todo | T-012, T-021, T-022 | 0 | |
