@@ -329,7 +329,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-032 | M3 | BE | done | T-030, T-020 | 0 | 2026-09-18 · backend · puerta de autenticación en proxy.ts (AUTH_REQUIRED): redirige /chat a /login, 401 para /api (excepto jobs/persist); enriquecido /api/chat, /api/sessions/* para manejar user_id de Supabase con fallback a anonId; tests de auth scenarios y proxy gate; pnpm check verde |
 | T-040 | M4 | HU | todo | T-016 | 0 | |
 | T-041 | M4 | DO | todo | T-016 | 1 | |
-| T-042 | M4 | BE | todo | T-017, T-021 | 1 | |
+| T-042 | M4 | BE | done | T-017, T-021 | 1 | 2026-09-18 · backend · endpoint `/api/health`, centralizador de errores `lib/http/errors.ts`, contador diario de tokens `lib/ai/budget.ts` con Redis/memoria, check de presupuesto antes de IA con 503 amable, incremento postior en `after()` |
 | T-043 | M4 | FE | todo | T-015 | 0 | |
 | T-044 | M4 | BE | todo | T-018, T-002 | 0 | |
 | T-045 | M4 | HU | todo | T-041, T-042 | 0 | |

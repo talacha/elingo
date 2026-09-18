@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { chatRequestSchema, ANON_COOKIE, CHAT_HEADERS } from "@/lib/contracts/chat";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { checkBudget, incrementBudget } from "@/lib/ai/budget";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
 import { getEnv, resolveProvider } from "@/lib/env";
@@ -8,6 +9,7 @@ import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
 import { getProvider } from "@/lib/ai/providers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRepo } from "@/lib/db";
+import { chatErrorResponse } from "@/lib/http/errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,8 +31,9 @@ export async function POST(req: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "invalid_request", message: "Cuerpo inválido", issues: parsed.error.issues },
-        { status: 400 }
+        ...chatErrorResponse("invalid_request", "Cuerpo inválido", 400, {
+          issues: parsed.error.issues,
+        })
       );
     }
 
@@ -41,11 +44,11 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages.at(-1);
     if (lastMessage && lastMessage.content.length > env.AI_MAX_INPUT_CHARS) {
       return NextResponse.json(
-        {
-          error: "invalid_request",
-          message: `Tu mensaje es demasiado largo. Usa menos de ${env.AI_MAX_INPUT_CHARS} caracteres.`,
-        },
-        { status: 400 }
+        ...chatErrorResponse(
+          "invalid_request",
+          `Tu mensaje es demasiado largo. Usa menos de ${env.AI_MAX_INPUT_CHARS} caracteres.`,
+          400
+        )
       );
     }
 
@@ -76,13 +79,33 @@ export async function POST(req: NextRequest) {
     const rateLimitKey = userId || anonId || getClientIp(req);
     const limit = await checkRateLimit(rateLimitKey);
     if (!limit.ok) {
+      const retryAfter = Math.ceil((limit.resetAt - Date.now()) / 1000);
       const response = NextResponse.json(
-        {
-          error: "rate_limited",
-          message: "Demasiadas peticiones. Intenta más tarde.",
-          retryAfter: Math.ceil((limit.resetAt - Date.now()) / 1000),
-        },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((limit.resetAt - Date.now()) / 1000)) } }
+        ...chatErrorResponse("rate_limited", "Demasiadas peticiones. Intenta más tarde.", 429, {
+          retryAfter,
+        })
+      );
+      if (setCookie) {
+        response.cookies.set(ANON_COOKIE, anonId, {
+          httpOnly: true,
+          maxAge: 365 * 24 * 60 * 60, // 1 year in seconds
+          path: "/",
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+        });
+      }
+      return response;
+    }
+
+    // Check daily token budget before calling the AI provider
+    const budgetOk = await checkBudget();
+    if (!budgetOk) {
+      const response = NextResponse.json(
+        ...chatErrorResponse(
+          "budget_exhausted",
+          "El presupuesto diario se agotó. Por favor, intenta mañana.",
+          503
+        )
       );
       if (setCookie) {
         response.cookies.set(ANON_COOKIE, anonId, {
@@ -134,6 +157,10 @@ export async function POST(req: NextRequest) {
         const logEvent = createChatLogEvent(sessionId, provider, result);
         logChatEvent(logEvent);
 
+        // Increment daily token budget
+        const totalTokens = result.usage.inputTokens + result.usage.outputTokens;
+        await incrementBudget(totalTokens);
+
         // Persist the full message history with userId or anonId
         await enqueuePersist({
           sessionId,
@@ -161,8 +188,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Chat error:", error);
     return NextResponse.json(
-      { error: "upstream_error", message: "Error al procesar tu solicitud. Intenta de nuevo." },
-      { status: 500 }
+      ...chatErrorResponse(
+        "upstream_error",
+        "Error al procesar tu solicitud. Intenta de nuevo.",
+        500
+      )
     );
   }
 }
