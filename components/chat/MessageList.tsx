@@ -50,7 +50,13 @@ export function MessageList({ messages, streaming, thinking, intro, className }:
     >
       <div className="mx-auto w-full max-w-3xl px-gutter py-4">
         {intro}
-        <ol role="log" aria-label="Conversación con ELI" className="grid gap-3">
+        <ol
+          role="log"
+          aria-label="Conversación con ELI"
+          aria-live="polite"
+          aria-atomic="false"
+          className="grid gap-3"
+        >
           {visible.map((message, i) => (
             <MessageBubble
               key={message.id}

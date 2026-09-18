@@ -3,16 +3,25 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
+import type { Subject } from "@/lib/contracts/chat";
 
 /** Límite de entrada del servidor (`AI_MAX_INPUT_CHARS`, tasks.md 6.6). */
 export const MAX_INPUT_CHARS = 1000;
 export const INPUT_PLACEHOLDER = "Tengo este problema: … me trabé en …";
+
+const SUBJECT_PLACEHOLDERS: Record<Subject, string> = {
+  mates: "Tengo este problema de mates: … me trabé en …",
+  lengua: "Tengo esta duda de lengua: … no sé bien…",
+  ciencias: "Tengo esta pregunta de ciencias: … no entiendo bien…",
+};
 
 interface ChatInputProps {
   /** ELI está respondiendo: se ofrece «Parar» en vez de «Enviar». */
   streaming: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
+  /** Asignatura seleccionada, para personalizar el placeholder. */
+  subject?: Subject;
 }
 
 function SendIcon() {
@@ -41,10 +50,11 @@ function StopIcon() {
   );
 }
 
-export function ChatInput({ streaming, onSend, onStop }: ChatInputProps) {
+export function ChatInput({ streaming, onSend, onStop, subject }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const canSend = value.trim().length > 0 && !streaming;
+  const placeholder = subject ? SUBJECT_PLACEHOLDERS[subject] : INPUT_PLACEHOLDER;
 
   // El área de texto crece con el mensaje hasta unas seis líneas; después hace scroll interno.
   useEffect(() => {
@@ -59,6 +69,7 @@ export function ChatInput({ streaming, onSend, onStop }: ChatInputProps) {
     if (!text || streaming) return;
     onSend(text);
     setValue("");
+    // Restaurar el foco al input después de enviar
     textareaRef.current?.focus();
   };
 
@@ -89,9 +100,10 @@ export function ChatInput({ streaming, onSend, onStop }: ChatInputProps) {
           onKeyDown={onKeyDown}
           rows={1}
           maxLength={MAX_INPUT_CHARS}
-          placeholder={INPUT_PLACEHOLDER}
+          placeholder={placeholder}
           autoComplete="off"
           enterKeyHint="send"
+          aria-label="Escribe tu mensaje para ELI"
           className="min-h-11 flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-ink-soft"
         />
         {streaming ? (

@@ -5,20 +5,9 @@ import { EliMark } from "@/components/landing/EliMark";
 import { Button } from "@/components/ui/Button";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
+import { SubjectChips } from "./SubjectChips";
+import { EmptyState } from "./EmptyState";
 import { useTutorChat, type TutorChatError } from "./useTutorChat";
-
-/** Bienvenida mínima mientras no hay mensajes (T-015 la amplía con ejemplos). */
-function Welcome() {
-  return (
-    <div className="mb-4 grid gap-1.5 rounded-card border border-line bg-surface p-5 shadow-card">
-      <p className="m-0 font-display text-2xl font-bold">¡Hola! Soy ELI.</p>
-      <p className="m-0 max-w-[44ch] text-ink-soft">
-        Cuéntame qué no entiendes de tus deberes y lo resolvemos juntos, paso a paso. Yo no te doy
-        la respuesta: te ayudo a encontrarla.
-      </p>
-    </div>
-  );
-}
 
 function ErrorNotice({
   error,
@@ -71,16 +60,26 @@ export function ChatView() {
         messages={chat.messages}
         streaming={streaming}
         thinking={chat.isThinking}
-        intro={chat.messages.length === 0 ? <Welcome /> : null}
+        intro={
+          chat.messages.length === 0 ? (
+            <EmptyState
+              onSelectPrompt={(prompt, subject) => {
+                chat.setSubject(subject);
+                void chat.send(prompt);
+              }}
+              disabled={streaming}
+            />
+          ) : null
+        }
       />
 
       <div className="border-t border-line bg-canvas px-gutter pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="mx-auto w-full max-w-3xl space-y-3">
           {chat.error ? (
             <ErrorNotice error={chat.error} canRetry={chat.canRetry} onRetry={retry} />
           ) : (
             chat.canRetry && (
-              <p className="m-0 mb-2 flex flex-wrap items-center justify-between gap-2 px-1 text-ink-soft">
+              <p className="m-0 flex flex-wrap items-center justify-between gap-2 px-1 text-ink-soft">
                 <span>Has parado a ELI antes de que contestara.</span>
                 <Button variant="ghost" onClick={retry}>
                   Reintentar
@@ -88,13 +87,27 @@ export function ChatView() {
               </p>
             )
           )}
+
+          {/* Selector de asignatura */}
+          {chat.messages.length > 0 && (
+            <div className="px-1">
+              <p className="m-0 mb-2 text-sm font-semibold text-ink-soft">Asignatura:</p>
+              <SubjectChips
+                active={chat.subject}
+                onChange={chat.setSubject}
+                disabled={streaming}
+              />
+            </div>
+          )}
+
           <ChatInput
             streaming={streaming}
             onSend={(text) => void chat.send(text)}
             onStop={chat.stop}
+            subject={chat.subject}
           />
           {chat.meta?.provider === "mock" && (
-            <p className="m-0 mt-1.5 text-center text-[0.8rem] text-ink-soft">
+            <p className="m-0 text-center text-[0.8rem] text-ink-soft">
               ELI está en modo de prueba: sus respuestas son de ejemplo.
             </p>
           )}
