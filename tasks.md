@@ -30,6 +30,7 @@ Si no hay candidatas: informa "sin tareas desbloqueadas para <rol>", lista qué 
   git switch -c agent/T-0xx-<slug> origin/main && git push -u origin HEAD
   ```
 - Marca tu fila como `in-progress` y escribe en **Resultado** `in-progress · <rol> · <fecha>`. Commit `T-0xx: in progress` y push.
+- **No abras el PR todavía.** Si quieres CI o un preview antes del paso 6, ábrelo como borrador: `gh pr create --draft --title "T-0xx: <título> (en curso)"`. Un PR normal abierto a medias puede fusionarse desde GitHub antes de que termines y borra tu rama de lock.
 
 ### Paso 4 — Ejecutar
 - Toca solo los archivos de tu rol (sección 3) y los que liste la tarea. En archivos compartidos, cambios mínimos y aditivos.
@@ -48,7 +49,7 @@ node scripts/tasks-check.mjs --fix           # union duplica filas adyacentes: c
 git diff --quiet tasks.md || git commit -am "T-0xx: dedupe tasks.md"
 pnpm check                                   # obligatorio si el rebase trajo cambios de código; tests/tasks.test.ts falla si quedan IDs repetidos
 git push --force-with-lease
-gh pr create --title "T-0xx: <título corto>" --body "Cierra T-0xx. <qué se hizo>. Verificación: <comando>."
+gh pr create --title "T-0xx: <título corto>" --body "Cierra T-0xx. <qué se hizo>. Verificación: <comando>."   # si lo abriste como borrador: gh pr ready && gh pr edit --title "T-0xx: <título corto>"
 gh pr merge --auto --squash --delete-branch || gh pr merge --squash --delete-branch
 ```
 La segunda orden solo se usa si auto-merge no está disponible todavía (antes de T-002).

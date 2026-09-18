@@ -159,7 +159,7 @@ Repite con `frontend` y `data-ops` en `../elingo-fe` y `../elingo-do`. Para rond
 ### Reglas de la ronda
 
 - Una tarea por agente y ronda. El lock es la rama `agent/T-0xx-*` publicada en `origin`.
-- El humano solo hace tareas `HU`, revisa PRs si quiere y promueve tareas de la Bandeja.
+- El humano solo hace tareas `HU`, revisa PRs si quiere y promueve tareas de la Bandeja. **No fusiona PRs de agentes a mano**: auto-merge lo hace cuando la tarea está completa y CI en verde; fusionar un PR «in progress» borra el lock del agente y deja la tarea a medias (pasó con #2, #5 y #6).
 - Si un PR lleva más de 15 minutos sin fusionarse, el agente lo marca `blocked` y lo explica; el orquestador decide.
 - Las tareas `HU` no bloquean el trabajo de los agentes: cada servicio externo tiene fallback local.
 
