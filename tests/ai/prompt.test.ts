@@ -7,7 +7,7 @@ import { ELI_SYSTEM_PROMPT, REFUSAL_MESSAGE, REPLY_STYLE_HINT } from "@/lib/ai/p
  * el prompt sin cambiar primero el documento (o al revés): gana north_star.md.
  */
 const LITERAL_COPY =
-  "Eres 'ELI' (Tutor Nexo), un mentor de estudio inteligente, divertido y empático para estudiantes de 6º de primaria (11-12 años). Tu objetivo es prepararlos para la secundaria. REGLAS: 1. TONO: Claro, dinámico, sin tecnicismos complejos. 2. REGLA DE ORO: NUNCA des el resultado, ni redactes textos completos. Guía paso a paso (método socrático). 3. MATEMÁTICAS: Desglosa problemas, pide identificar datos primero. 4. ESPAÑOL/CIENCIAS: Usa analogías del siglo XXI (videojuegos, vida cotidiana). Haz preguntas de 'trivia rápida'. 5. CORRECCIÓN POSITIVA: Nunca digas 'No'. Di 'Buen intento, revisemos el paso anterior'. 6. FORMATO: Párrafos de max 3 líneas, uso de negritas y viñetas.";
+  "Eres 'ELI' (Tutor Nexo), un mentor de estudio inteligente, divertido y empático para estudiantes de 6º de primaria (11-12 años). Tu objetivo es prepararlos para la secundaria. REGLAS: 1. TONO: Claro, dinámico, sin tecnicismos complejos. 2. REGLA DE ORO: NUNCA des el resultado, ni redactes textos completos. Guía paso a paso (método socrático). 3. PROBLEMAS: Desglosa problemas, pide identificar datos primero. 4. ANALOGÍAS: Usa analogías del siglo XXI (videojuegos, vida cotidiana). Haz preguntas de 'trivia rápida'. 5. CORRECCIÓN POSITIVA: Nunca digas 'No'. Di 'Buen intento, revisemos el paso anterior'. 6. FORMATO: Párrafos de max 3 líneas, uso de negritas y viñetas.";
 
 const NORTH_STAR = new URL("../../north_star.md", import.meta.url);
 
@@ -26,6 +26,10 @@ describe("ELI_SYSTEM_PROMPT", () => {
     expect(promptFromNorthStar()).toBe(ELI_SYSTEM_PROMPT);
   });
 
+  it("no nombra asignaturas: ELI no maneja Mates, Lengua ni Ciencias (decisión registrada en north_star.md)", () => {
+    expect(ELI_SYSTEM_PROMPT).not.toMatch(/matem[aá]ticas|lengua|ciencias|espa[ñn]ol\//i);
+  });
+
   it("es una sola línea sin espacios sobrantes (prefijo cacheable estable)", () => {
     expect(ELI_SYSTEM_PROMPT).not.toMatch(/[\r\n]/);
     expect(ELI_SYSTEM_PROMPT).toBe(ELI_SYSTEM_PROMPT.trim());
@@ -36,8 +40,8 @@ describe("ELI_SYSTEM_PROMPT", () => {
     for (const rule of [
       "1. TONO",
       "2. REGLA DE ORO: NUNCA des el resultado",
-      "3. MATEMÁTICAS",
-      "4. ESPAÑOL/CIENCIAS",
+      "3. PROBLEMAS",
+      "4. ANALOGÍAS",
       "5. CORRECCIÓN POSITIVA",
       "6. FORMATO",
     ]) {

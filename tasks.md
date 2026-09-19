@@ -512,7 +512,7 @@ export interface TutorReplyInput { …; grade?: Grade }
 - **Base de datos**: la columna `chat_sessions.subject` (y su `CHECK`) se **conserva sin uso** para no migrar producción; se puede borrar en una migración aparte. Las filas antiguas mantienen su valor, que nadie lee.
 - **Landing**: la sección «Materias» pasa a «Cómo te ayuda» (cualquier tarea · español e inglés · paso a paso).
 - **Tareas en español o en inglés** (las escuelas de México son bilingües): la UI sigue en español, pero `REPLY_STYLE_HINT` (`lib/ai/prompt.ts`) pide responder en el idioma en que escribe el estudiante; si escribe en español sobre una tarea en inglés, explica en español y cita el inglés; si no está claro, en español. La pantalla vacía avisa de que también vale el inglés y ofrece ejemplos en los dos idiomas.
-- **Pendiente de decidir (north_star.md)**: el prompt literal conserva las reglas «3. MATEMÁTICAS» y «4. ESPAÑOL/CIENCIAS» y habla de «6º de primaria». No es UI ni API, así que no se ha tocado; cambiarlo exige una decisión registrada en `north_star.md` (y su test).
+- **Prompt literal (decisión registrada en `north_star.md`)**: las reglas 3 y 4, que se llamaban «MATEMÁTICAS» y «ESPAÑOL/CIENCIAS», pasan a «PROBLEMAS» y «ANALOGÍAS» con el mismo contenido; el prompt ya no nombra asignaturas (`tests/ai/prompt.test.ts` lo comprueba y sigue comparándolo byte a byte con el documento). La frase del nivel («6º de primaria (11-12 años)») es la del grado por defecto: `buildSystemPrompt(grado)` la sustituye (6.15).
 
 ## 7. Tabla de estado
 
@@ -569,6 +569,21 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-072 | M8 | BE | done | T-067 | 0 | 2026-09-18 · backend · PR #33: nueva sección 6.14 en tasks.md documenta el flujo completo de hot-reload del modelo, caché de proceso (30s TTL), fallbacks graceful (Neon caído, email admin cambiado), auditoría (`updated_by`), y cobertura de tests existentes; validado con `pnpm check` verde (283 tests) |
 | T-071 | M8 | FE | done | T-023 | 0 | 2026-09-18 · frontend · PR #xx (pending merge): SystemMessage component displays model at chat start; reads x-model header from `/api/chat` response; shows "Hola, soy ELI. Modelo: <model>" in subtle gray bubble; updates dynamically when admin changes model; tests passing |
 | T-073 | M8 | FE | done | T-031, T-065 | 0 | 2026-09-18 · frontend · E2E test con Playwright (`e2e/auth-and-parents.spec.ts`): signup → login → `/parents` (palabra segura, ajustes, flags) → `/chat` (verifica UI oculta botones según `allowImages`/`allowVoice`); graceful degradation sin Supabase; tests contra mock y auth disabled; `pnpm check` verde; PR #36 |
+| T-074 | M8 | BE | done | T-065, T-066 | 0 | 2026-09-18 · PR #38 · rol `super-admin` en `users`, `/perfil` persiste nombre y curso, `/admin` cableado con edición de roles (`/api/admin/users/role`) |
+| T-075 | M8 | FE | done | T-073 | 0 | 2026-09-18 · PR #39 · arreglo del test E2E (esperar la carga real de la página) |
+| T-076 | M8 | BE | done | T-072 | 0 | 2026-09-18 · PR #40 · `/admin` muestra el proveedor y el modelo **efectivos** (antes solo lo guardado y se veía «usa la variable de entorno»); `AI_PROVIDER` se valida (un valor desconocido dejaba el chat sin proveedor); guardar invalida la caché; `getAdminEmail()` compartido |
+| T-077 | M9 | DO | done | T-067 | 0 | 2026-09-18 · PR #41 · registro único de configuración (`lib/config/registry.ts`) en Postgres con caché memoria → Redis → Postgres; tabla `account_flags` y flags `voice_mode`/`image_mode` (global y por cuenta) que gobiernan la UI y el servidor; migraciones 0003-0004; API de admin para parámetros y flags |
+| T-078 | M9 | BE | done | T-077 | 0 | 2026-09-18 · PR #42 · modelo visual `google/gemma-4-31b-it:free`; STT `openai/whisper-large-v3-turbo` por `/audio/transcriptions` (acepta `webm`); TTS `fish-audio/s2.1-pro-free:free` por `/audio/speech` con `hexgrad/kokoro-82m` de respaldo; `/admin` valida cada modelo contra su catálogo (chat, STT, TTS) |
+| T-079 | M9 | FE | done | T-054, T-056 | 0 | 2026-09-18 · PR #43 · si la petición fue hablada, la respuesta se lee sola (nunca tras un error o «Parar»; se corta la voz al activar el micrófono) |
+| T-080 | M9 | BE | done | T-077 | 0 | 2026-09-18 · PR #44 · solo la respuesta final: `ReplyFilter` (recorta `<think>` y descarta razonamiento en claro), mensaje de estilo aparte, `reasoning.exclude`, modelo de respaldo y tiempo máximo de 20 s hasta el primer texto |
+| T-081 | M9 | BE | done | T-080 | 0 | 2026-09-18 · PR #45 · nivel K-12 (`lib/contracts/grade.ts`): selector en `/perfil`, `buildSystemPrompt(grado)`; con 6.º el prompt es idéntico al literal |
+| T-083 | M9 | FE | done | T-068 | 0 | 2026-09-18 · PR #47 · `/admin` dividido en `/admin/users`, `/admin/config` y `/admin/features`; acceso decidido en el servidor (404 sin permiso, sin título en los metadatos, nunca prerenderizado) |
+| T-084 | M9 | DO | done | T-077 | 0 | 2026-09-18 · PR #48 · `NeonRepo.setSafeWordHash` lanza si el usuario no existe; el test de configuración se puede volver a ejecutar (hallado al correr por primera vez la batería contra una base Neon real) |
+| T-085 | M9 | BE | done | T-080 | 0 | 2026-09-18 · PR #49 · respaldo propio para las preguntas con foto (`OPENROUTER_VISION_FALLBACK_MODEL`): el modelo visual gratuito respondía 429 y las fotos no tenían respaldo |
+| T-086 | M9 | BE | done | T-080 | 0 | 2026-09-18 · PR #50 · un 200 sin ningún texto visible cuenta como intento fallido (respaldo o aviso amable), no un cuerpo vacío |
+| T-087 | M9 | FE | done | T-014 | 0 | 2026-09-18 · PR #51 · «ELI está pensando…» rota frases amables con una animación suave, accesible y sin movimiento con `prefers-reduced-motion` |
+| T-088 | M9 | FE | in-progress | T-081 | 0 | 2026-09-18 · PR #52 · sin asignaturas (Mates/Lengua/Ciencias) en la UI ni en la API; `/parents` muestra un único resumen de actividad; tareas en español o inglés. Sustituye a T-082 (PR #46, cerrado: deducir la asignatura ya no tiene sentido) |
+| T-089 | M9 | HU | in-progress | T-088 | 0 | 2026-09-18 · `north_star.md` (reglas de producto, prompt sin asignaturas, criterios, decisiones), `roadmap.md` (M9), `tasks.md`, README y `CLAUDE.md` alineados con las decisiones del propietario |
 
 ## 8. Detalle de tareas
 
@@ -616,7 +631,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 ### T-015 · FE · UX infantil
 - **Archivos**: `components/chat/SubjectChips.tsx`, `components/chat/Markdown.tsx`, `components/chat/EmptyState.tsx`, ajustes en `components/chat/*`.
-- **Definición de hecho**: chips "Mates", "Lengua", "Ciencias" que fijan `subject` y sugieren una plantilla en el input; render seguro de markdown ligero (negritas, viñetas, saltos de línea; sin HTML crudo; por ejemplo `react-markdown` sin plugins de HTML); estado vacío con bienvenida y 3 ejemplos; estados de error y carga; `aria-live="polite"` en el stream; foco correcto; input fijado abajo con `100dvh` en móvil.
+- **Superado por T-088**: las asignaturas y sus chips ya no existen; el resto de esta tarea (markdown seguro, estados, `aria-live`, foco, `100dvh`) sigue vigente. Texto original: chips "Mates", "Lengua", "Ciencias" que fijan `subject` y sugieren una plantilla en el input; render seguro de markdown ligero (negritas, viñetas, saltos de línea; sin HTML crudo; por ejemplo `react-markdown` sin plugins de HTML); estado vacío con bienvenida y 3 ejemplos; estados de error y carga; `aria-live="polite"` en el stream; foco correcto; input fijado abajo con `100dvh` en móvil.
 - **Verificación**: `pnpm dev` en móvil (375 px) con teclado virtual; `pnpm check`.
 
 ### T-016 · DO · Proyecto en Vercel y entornos
@@ -676,7 +691,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 ### T-031 · FE · Login, registro y perfil
 - **Archivos**: `app/(app)/login/page.tsx`, `app/(app)/registro/page.tsx`, `app/(app)/perfil/page.tsx`, `components/auth/*`, botón de sesión en el layout de `(app)`.
-- **Definición de hecho**: registro y login con email y contraseña (o enlace mágico) para madre/padre; perfil de alumno (nombre y curso, por defecto 6º); logout; formularios en español con errores amables; sin claves de Supabase muestra un aviso y no rompe.
+- **Definición de hecho**: registro y login con email y contraseña (o enlace mágico) para madre/padre; perfil de alumno (nombre y curso; desde T-081 el curso es K-12 —kínder y 1.º-12.º—, por defecto 6.º); logout; formularios en español con errores amables; sin claves de Supabase muestra un aviso y no rompe.
 - **Verificación**: `pnpm dev` con claves de Supabase.
 
 ### T-032 · BE · Protección de rutas y usuario en Neon
@@ -742,7 +757,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 ### T-056 · FE · Salida de voz ("Escuchar")
 
-- **Qué**: botón "Escuchar" en cada burbuja de ELI; intenta `/api/speech` y reproduce el audio devuelto; si responde `204` o falla, usa `window.speechSynthesis` en español. Nunca automático.
+- **Qué**: botón "Escuchar" en cada burbuja de ELI; intenta `/api/speech` y reproduce el audio devuelto; si responde `204` o falla, usa `window.speechSynthesis` en español. Manual, salvo desde T-079: si la petición de la alumna fue hablada, la respuesta se lee sola al terminar.
 - **Definición de hecho**: con `AI_PROVIDER=mock` y sin `FISH_AUDIO_API_KEY` (como en CI), el botón sigue funcionando vía `speechSynthesis`; `pnpm check` no requiere audio real.
 
 ### T-060 · DO · Esquema — familias
@@ -767,6 +782,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 
 ### T-064 · BE · Informes por asignatura
 
+- **Superado por T-088**: ya no hay asignaturas; `getSubjectInsights` pasó a `getActivityInsight`, un único resumen de todas las conversaciones. Texto original:
 - **Qué**: nuevo método del repositorio que agrupa `chat_sessions`/`messages` del usuario por `subject`: número de sesiones, de mensajes, última actividad, y veces que el último mensaje de un turno de la alumna coincide con el heurístico "pide la respuesta" (reutiliza `asksForTheAnswer` de `lib/ai/providers/mock.ts`, exportado). `GET /api/parents/insights` lo expone junto a `hasSafeWord` y `settings`.
 - **Definición de hecho**: sin conversaciones, devuelve listas vacías, no un error; no llama a ningún proveedor de IA (coste cero, todo derivado de datos ya guardados).
 
@@ -830,11 +846,11 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | ID | Propuesta | Origen |
 |---|---|---|
 | N-001 | Historial de conversaciones para padres (vista de solo lectura) | roadmap M5 |
-| N-002 | Selector de asignatura persistente por sesión y sugerencias por tema | roadmap M5 |
+| N-002 | ~~Selector de asignatura persistente por sesión y sugerencias por tema~~ — descartado: ELI no maneja asignaturas (T-088) | roadmap M5 |
 | N-003 | Rachas simples ("3 días seguidos estudiando") | roadmap M5 |
 | N-004 | ~~Foto del problema: subida a Supabase Storage y lectura con visión~~ — implementado en M6/T-055 sin Supabase Storage (efímera, nunca se persiste) | roadmap M5 |
 | N-005 | Migrar sesiones anónimas al usuario al iniciar sesión | roadmap M5 |
-| N-006 | Evals del prompt con clave real (10 problemas por asignatura, criterio "no da la respuesta") | roadmap M5 |
+| N-006 | Evals del prompt con clave real (10 problemas variados, en español y en inglés y de varios grados, criterio "no da la respuesta") | roadmap M5 |
 | N-007 | Ejemplos few-shot en el prompt de sistema para superar el mínimo cacheable y afinar el tono | roadmap M5 |
 | N-008 | Exigir el job `e2e` en el ruleset de `main` cuando sea estable | T-044 |
 | N-009 | Resuelto por el orquestador: `scripts/tasks-check.mjs --fix` en el paso 6 y `tests/tasks.test.ts` en CI. Origen: `merge=union` duplicaba filas adyacentes de la tabla de estado al rebasar T-010 sobre T-002 | T-010 |
@@ -846,3 +862,8 @@ El humano promueve una fila a `todo` moviéndola a la sección 7 con hito, rol y
 | N-T030-1 | Resuelto (M3): `middleware.ts` renombrado a `proxy.ts` y la función exportada de `middleware` a `proxy` (Next.js 16 deprecó la convención `middleware`); actualizadas las referencias en la sección 3, T-030, T-032, `CLAUDE.md` y `.claude/agents/data-ops.md` | T-030 |
 | N-T044-1 | Considerar exigir el job `e2e` como requerido en el ruleset de `main` una vez que sea estable y ejecute consistentemente en CI | T-044 |
 | N-T030-2 | Resuelto: `lib/supabase/client.ts` (código de navegador) leía las variables `NEXT_PUBLIC_SUPABASE_*` a través de `getEnv()`, que enumera `process.env` dinámicamente — Next.js solo inlinea en el bundle del navegador las referencias *literales* `process.env.NEXT_PUBLIC_X`, no una lectura dinámica como esa (la propia documentación de Next.js pone justo ese patrón como ejemplo de lo que *no* se inlinea). El login nunca habría funcionado en producción aunque las variables estuvieran bien puestas. `client.ts` ahora lee `process.env.NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` de forma literal, con fallback a los nombres `NEXT_PUBLIC_ELI_SUPABASE_*` que instala la integración de Supabase del Marketplace de Vercel (mismo problema que `eli_DATABASE_URL` con Neon, N-010); `getEnv()` en `lib/env.ts` gana el mismo fallback para el lado servidor. **Lección para el futuro**: cualquier variable `NEXT_PUBLIC_*` nueva que se vaya a leer desde un componente cliente necesita acceso literal a `process.env.NEXT_PUBLIC_X` en ese archivo — no sirve pasarla por `getEnv()` | T-030 |
+| N-T088-1 | Exigir en el CI la batería del repositorio contra Neon (rama efímera con `DATABASE_URL`): hoy el CI no tiene base de datos y por eso nadie vio el esquema de producción desalineado ni el bug de `setSafeWordHash` | T-084 |
+| N-T088-2 | Borrar la columna `chat_sessions.subject` (y su `CHECK`) y las columnas `users.allow_images`/`allow_voice`, sin uso, en una migración aparte, con copia de respaldo previa | T-088 |
+| N-T088-3 | Comprender vídeo (`video_url`): el modelo visual por defecto ya lo acepta, la app solo envía imágenes; falta el envío y resolver el tamaño (data URL frente al límite del cuerpo de las funciones) | T-088 |
+| N-T088-4 | Proveedor directo de Gemini (`GEMINI_API_KEY`, endpoint compatible con OpenAI) como nivel extra de respaldo si OpenRouter cae; hoy la clave de Google se conecta en OpenRouter | T-085 |
+| N-T088-5 | Elegir el grado sin cuenta (hoy una alumna anónima siempre usa 6.º) | T-081 |
