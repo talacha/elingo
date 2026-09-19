@@ -15,13 +15,23 @@ interface MessageListProps {
   intro?: ReactNode;
   /** Modelo actual a mostrar en el mensaje de sistema. */
   model?: string | null;
+  /** Id de la respuesta de ELI que debe leerse en voz alta (la pregunta fue hablada). */
+  autoSpeakId?: string | null;
   className?: string;
 }
 
 /** Si la niña está a menos de esta distancia del final, la lista la sigue mientras ELI escribe. */
 const NEAR_BOTTOM_PX = 120;
 
-export function MessageList({ messages, streaming, thinking, intro, model, className }: MessageListProps) {
+export function MessageList({
+  messages,
+  streaming,
+  thinking,
+  intro,
+  model,
+  autoSpeakId,
+  className,
+}: MessageListProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const seenCount = useRef(0);
@@ -66,6 +76,7 @@ export function MessageList({ messages, streaming, thinking, intro, model, class
               key={message.id}
               message={message}
               streaming={streaming && i === visible.length - 1 && message.role === "assistant"}
+              autoSpeak={message.id === autoSpeakId}
             />
           ))}
           {thinking && <TypingIndicator />}
