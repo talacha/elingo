@@ -7,8 +7,14 @@ import { getEnv, resetEnvCache } from "@/lib/env";
 const PRIMARY = "nvidia/nemotron-3.5-lightning:free";
 const FALLBACK = "deepseek/deepseek-v4-flash-0731:free"; // por defecto de OPENROUTER_FALLBACK_MODEL
 const VISION = "google/gemma-4-31b-it:free";
+const VISION_FALLBACK = "qwen/qwen3.8-27b:free"; // por defecto de OPENROUTER_VISION_FALLBACK_MODEL
 
-const ENV_KEYS = ["OPENROUTER_API_KEY", "OPENROUTER_FALLBACK_MODEL", "OPENROUTER_FIRST_TOKEN_TIMEOUT_MS"];
+const ENV_KEYS = [
+  "OPENROUTER_API_KEY",
+  "OPENROUTER_FALLBACK_MODEL",
+  "OPENROUTER_VISION_FALLBACK_MODEL",
+  "OPENROUTER_FIRST_TOKEN_TIMEOUT_MS",
+];
 
 const input: TutorReplyInput = {
   sessionId: "s",
@@ -121,8 +127,8 @@ describe("OpenRouterProvider: la niña solo ve la respuesta final", () => {
     expect(modelsCalled()).toEqual([PRIMARY]);
   });
 
-  it("con una foto, el razonamiento filtrado tampoco se enseña (y no hay respaldo: no es multimodal)", async () => {
-    fetchSpy.mockResolvedValue(sse(LEAKED));
+  it("con una foto, el razonamiento filtrado tampoco se enseña (y el respaldo es el visual, nunca el de texto)", async () => {
+    fetchSpy.mockImplementation(async () => sse(LEAKED));
     const withImage: TutorReplyInput = {
       ...input,
       messages: [{ role: "user", content: "mira", images: [{ mediaType: "image/png", data: "ZmFrZQ==" }] }],
@@ -131,7 +137,54 @@ describe("OpenRouterProvider: la niña solo ve la respuesta final", () => {
     const { stream, done } = await new OpenRouterProvider({ env: getEnv() }).reply(withImage);
     expect(await readAll(stream)).toBe(UPSTREAM_ERROR_MESSAGE);
     expect((await done).stopReason).toBe("error");
-    expect(modelsCalled()).toEqual([VISION]);
+    expect(modelsCalled()).toEqual([VISION, VISION_FALLBACK]);
+  });
+
+  describe("preguntas con foto: un 429 del modelo visual gratuito (el fallo real en producción)", () => {
+    const withImage: TutorReplyInput = {
+      ...input,
+      messages: [{ role: "user", content: "mira mi tarea", images: [{ mediaType: "image/png", data: "ZmFrZQ==" }] }],
+    };
+    const rateLimited = () =>
+      new Response(
+        JSON.stringify({ error: { message: "Provider returned error", code: 429, metadata: { provider_name: "Google AI Studio" } } }),
+        { status: 429 },
+      );
+
+    it("responde con el modelo visual de respaldo, que recibe la foto", async () => {
+      fetchSpy.mockImplementationOnce(async () => rateLimited()).mockImplementationOnce(async () => sse(GOOD_ANSWER));
+
+      const { stream, done } = await new OpenRouterProvider({ env: getEnv() }).reply(withImage);
+      expect(await readAll(stream)).toBe(GOOD_ANSWER);
+
+      const result = await done;
+      expect(result.model).toBe(VISION_FALLBACK);
+      expect(result.stopReason).toBe("end_turn");
+      expect(modelsCalled()).toEqual([VISION, VISION_FALLBACK]);
+      // El respaldo recibe la misma foto, no un turno de solo texto.
+      const secondBody = JSON.parse((fetchSpy.mock.calls[1][1] as RequestInit).body as string);
+      const lastTurn = secondBody.messages.at(-1);
+      expect(lastTurn.content.some((part: { type: string }) => part.type === "image_url")).toBe(true);
+    });
+
+    it("si el respaldo visual también falla, la niña ve el aviso amable (no el error técnico)", async () => {
+      fetchSpy.mockImplementation(async () => rateLimited());
+
+      const { stream, done } = await new OpenRouterProvider({ env: getEnv() }).reply(withImage);
+      const shown = await readAll(stream);
+      expect(shown).toBe(UPSTREAM_ERROR_MESSAGE);
+      expect(shown).not.toMatch(/429|rate-limited|OpenRouter/i);
+      expect((await done).stopReason).toBe("error");
+      expect(modelsCalled()).toEqual([VISION, VISION_FALLBACK]);
+    });
+
+    it("el modelo de texto sigue sin usarse para fotos", async () => {
+      fetchSpy.mockImplementation(async () => rateLimited());
+      const { stream } = await new OpenRouterProvider({ env: getEnv() }).reply(withImage);
+      await readAll(stream);
+      expect(modelsCalled()).not.toContain(PRIMARY);
+      expect(modelsCalled()).not.toContain(FALLBACK);
+    });
   });
 });
 
