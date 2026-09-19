@@ -165,7 +165,14 @@ export class NeonRepo implements Repo {
   }
 
   async setSafeWordHash(userId: string, hash: string): Promise<void> {
-    await this.db.update(users).set({ safeWordHash: hash }).where(eq(users.id, userId));
+    const updated = await this.db
+      .update(users)
+      .set({ safeWordHash: hash })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id });
+    // Misma semántica que MemoryRepo: fijar la palabra segura de un usuario que no existe es un error,
+    // no un éxito silencioso (un `update` sin filas no falla por sí solo).
+    if (updated.length === 0) throw new Error(`users: el usuario ${userId} no existe`);
   }
 
   async updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags> {
