@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ELI_SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { buildSystemPrompt } from "@/lib/ai/prompt";
 import {
   createTutorStream,
   ZERO_USAGE,
@@ -16,6 +16,7 @@ import type {
   TutorUsage,
 } from "@/lib/contracts/ai";
 import type { ImageMimeType, Subject } from "@/lib/contracts/chat";
+import type { Grade } from "@/lib/contracts/grade";
 import { getEnv, type Env } from "@/lib/env";
 
 /** Bloque de imagen del formato de contenido de Anthropic (Claude ya es multimodal). */
@@ -131,7 +132,7 @@ export class AnthropicProvider implements TutorProvider {
     const base = {
       model: this.model,
       max_tokens: this.maxOutputTokens,
-      system: buildSystem(input.subject),
+      system: buildSystem(input.subject, input.grade),
       output_config: { effort: this.effort },
       // T-051: Claude ya es multimodal con el mismo modelo, sin `visionModel` en este proveedor;
       // un turno con imágenes manda el bloque `image` antes del texto (orden recomendado por Anthropic).
@@ -169,9 +170,9 @@ function toAnthropicMessage(
  * Bloques de sistema: primero el prompt literal con `cache_control` (prefijo estable) y, si hay
  * asignatura, un segundo bloque sin caché que no invalida el primero.
  */
-export function buildSystem(subject?: Subject): SystemBlock[] {
+export function buildSystem(subject?: Subject, grade?: Grade): SystemBlock[] {
   const blocks: SystemBlock[] = [
-    { type: "text", text: ELI_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    { type: "text", text: buildSystemPrompt(grade), cache_control: { type: "ephemeral" } },
   ];
   const hint = subjectHint(subject);
   if (hint) blocks.push({ type: "text", text: hint });

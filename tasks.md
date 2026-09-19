@@ -487,6 +487,24 @@ export interface AdminUserSummary { id; displayName; role; createdAt; sessionCou
 
 **Tests**: `tests/config/*` (registro, precedencia, caché memoria→Redis→Postgres con Redis simulado, flags global Y cuenta), `tests/api/admin/config.test.ts` y `tests/api/admin/flags.test.ts` (API), `tests/api/flags-enforcement.test.ts` (los flags se aplican en chat/voz/capabilities/parents), `tests/db/repo.test.ts` (`account_flags`, `deleteAiConfig`), `tests/ai/providerOverrides.test.ts`, `tests/ai/transcribe.test.ts`.
 
+### 6.15 Nivel escolar K-12 (T-081)
+
+```ts
+// lib/contracts/grade.ts
+export const GRADES = ["K", "1", …, "12"] as const;       // valor canónico; K = kínder
+export declare function parseGrade(raw: string | null | undefined): Grade | null;   // "6º", "1º ESO", "kínder", "8th"… → canónico
+export declare function gradeDescription(g: Grade): string;  // "6.º grado (11-12 años)"
+// lib/ai/prompt.ts
+export declare function buildSystemPrompt(grade?: Grade): string;   // 6.º (por defecto) === ELI_SYSTEM_PROMPT
+// lib/contracts/ai.ts
+export interface TutorReplyInput { …; grade?: Grade }
+```
+
+- La edad típica de un grado N es N+5 a N+6 años (6.º → 11-12, como decía el prompt original); kínder, 5-6.
+- **Dónde se guarda**: `users.grade` (texto). La columna admite valores antiguos («6º», «1º ESO», «5º»): `parseGrade` los entiende (1.º–4.º ESO = 7.º–10.º grado; 1.º–2.º Bachillerato = 11.º–12.º) para no romper perfiles existentes. `PATCH /api/perfil` valida con `parseGrade` (`400` si no es K-12) y guarda siempre el canónico.
+- **Cómo llega al prompt**: `POST /api/chat` lee el grado del perfil de la alumna con sesión (`upsertUserFromSupabase(...).grade`) y lo pasa en `TutorReplyInput.grade`; los tres proveedores llaman a `buildSystemPrompt(grade)`. Sin sesión, o con un valor irreconocible, se usa el grado por defecto (6.º): el prompt de siempre. Ver también `north_star.md` (la sustitución de la frase del nivel es una decisión registrada allí).
+- **Limitación**: una alumna anónima no puede elegir grado (no hay perfil). Si hiciera falta, habría que enviarlo en la petición de chat.
+
 ## 7. Tabla de estado
 
 Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea** = número de tareas que dependen de esta directa o transitivamente (orientativo).

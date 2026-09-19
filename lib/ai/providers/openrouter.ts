@@ -1,4 +1,4 @@
-import { ELI_SYSTEM_PROMPT, REPLY_STYLE_HINT } from "@/lib/ai/prompt";
+import { buildSystemPrompt, REPLY_STYLE_HINT } from "@/lib/ai/prompt";
 import {
   createTutorStream,
   ZERO_USAGE,
@@ -16,6 +16,7 @@ import type {
   TutorUsage,
 } from "@/lib/contracts/ai";
 import type { Subject } from "@/lib/contracts/chat";
+import type { Grade } from "@/lib/contracts/grade";
 import { getEnv, type Env } from "@/lib/env";
 
 /** Parte de contenido multimodal (formato compatible OpenAI que usa OpenRouter). */
@@ -147,7 +148,7 @@ export class OpenRouterProvider implements TutorProvider {
           model,
           max_tokens: this.maxOutputTokens,
           stream: true,
-          messages: buildMessages(input.subject, input.messages),
+          messages: buildMessages(input.subject, input.messages, input.grade),
           usage: { include: true },
           // Que el razonamiento de los modelos que lo separan no viaje en la respuesta.
           reasoning: { exclude: true },
@@ -245,14 +246,14 @@ function inputHasImage(input: Pick<TutorReplyInput, "messages">): boolean {
  * Construye los mensajes con el prompt de sistema literal cacheado y pista de asignatura.
  * Un turno con imágenes se envía como `content` multimodal (formato compatible OpenAI).
  */
-function buildMessages(subject: Subject | undefined, turns: readonly TutorTurn[]) {
+function buildMessages(subject: Subject | undefined, turns: readonly TutorTurn[], grade?: Grade) {
   const messages: Array<{
     role: "user" | "assistant" | "system";
     content: OpenRouterContent;
   }> = [
     {
       role: "system",
-      content: ELI_SYSTEM_PROMPT,
+      content: buildSystemPrompt(grade),
     },
   ];
 

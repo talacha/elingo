@@ -1,4 +1,5 @@
 import type { ImageMimeType, Subject } from "./chat";
+import type { Grade } from "./grade";
 
 /** Contrato del servicio de IA. Fuente de verdad: tasks.md, sección 6.2. */
 
@@ -18,6 +19,8 @@ export interface TutorTurn {
 export interface TutorReplyInput {
   sessionId: string;
   subject?: Subject;
+  /** Nivel K-12 de la alumna: adapta el prompt de sistema (`buildSystemPrompt`). Sin él, 6.º grado. */
+  grade?: Grade;
   /** Ya recortado por slidingWindow; solo texto, nunca bloques de thinking. */
   messages: TutorTurn[];
   signal?: AbortSignal;
