@@ -129,6 +129,10 @@
   /* Micro-animación: entrada sutil de burbujas de chat */
   --animate-fade-in: fadeIn 0.4s ease-out;
 
+  /* «ELI está pensando…»: cada frase entra desde abajo y un brillo recorre el texto */
+  --animate-phrase-in: phraseIn 0.45s ease-out;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+
   @keyframes breathe {
     0%,
     100% {
@@ -167,6 +171,24 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+  @keyframes phraseIn {
+    from {
+      opacity: 0;
+      transform: translateY(0.5em);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
     }
   }
 }
