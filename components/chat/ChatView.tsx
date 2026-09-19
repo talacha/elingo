@@ -112,6 +112,7 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
           streaming={streaming}
           thinking={chat.isThinking}
           model={chat.meta?.model}
+          autoSpeakId={capabilities.allowVoice ? chat.speakReplyId : null}
           intro={
             chat.messages.length === 0 ? (
               <EmptyState
@@ -184,7 +185,7 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
 
           <ChatInput
             streaming={streaming}
-            onSend={(text, image) => void chat.send(text, image)}
+            onSend={(text, image, options) => void chat.send(text, image, options)}
             onStop={chat.stop}
             subject={chat.subject}
             capabilities={capabilities}
