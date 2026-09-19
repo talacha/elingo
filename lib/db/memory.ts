@@ -15,7 +15,7 @@ import {
   type UserRecord,
   type UserSecurity,
 } from "./repo";
-import type { MessageRole } from "./schema";
+import type { MessageRole, UserRole } from "./schema";
 
 /** M7: UserRecord más los campos que no expone el contrato público de upsertUserFromSupabase. */
 interface MemUser extends UserRecord {
@@ -162,6 +162,13 @@ export class MemoryRepo implements Repo {
     return row;
   }
 
+  async getUser(supabaseUserId: string): Promise<UserRecord | null> {
+    const user = [...this.users.values()].find((u) => u.supabaseUserId === supabaseUserId);
+    if (!user) return null;
+    const { id, supabaseUserId: sId, displayName, grade, role, createdAt } = user;
+    return { id, supabaseUserId: sId, displayName, grade, role, createdAt };
+  }
+
   async getUserSecurity(userId: string): Promise<UserSecurity | null> {
     const user = this.users.get(userId);
     if (!user) return null;
@@ -216,6 +223,13 @@ export class MemoryRepo implements Repo {
         createdAt: u.createdAt,
         sessionCount: sessionCountByUser.get(u.id) ?? 0,
       }));
+  }
+
+  async setUserRole(userId: string, role: UserRole): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.role = role;
+    }
   }
 
   async getAiConfig(): Promise<Record<string, string>> {

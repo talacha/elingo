@@ -44,12 +44,21 @@ export function ProfileForm() {
 
         setIsAuthenticated(true);
 
-        // In a real app, we'd load the profile from the database
-        // For now, we just show empty fields ready to be filled
-        setProfile({
-          displayName: "",
-          grade: "6º",
-        });
+        // Load the profile from the database
+        const res = await fetch("/api/perfil");
+        if (res.ok) {
+          const data = await res.json();
+          setProfile({
+            displayName: data.displayName || "",
+            grade: data.grade || "6º",
+          });
+        } else {
+          // If not found, initialize with empty values
+          setProfile({
+            displayName: "",
+            grade: "6º",
+          });
+        }
       } catch {
         setError("Error al cargar el perfil.");
       } finally {
@@ -79,8 +88,21 @@ export function ProfileForm() {
     setSaving(true);
 
     try {
-      // In a real app, we'd save this to the database
-      // For now, just show success message
+      const res = await fetch("/api/perfil", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          displayName: profile.displayName.trim(),
+          grade: profile.grade,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.message || "Error al guardar el perfil.");
+        return;
+      }
+
       setSuccess("Perfil guardado correctamente.");
     } catch {
       setError("Error al guardar el perfil.");

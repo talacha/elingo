@@ -154,6 +154,8 @@ export interface Repo {
   getSession(id: string, scope: RepoScope): Promise<SessionDetailResponse | null>;
   /** Crea o actualiza el usuario ligado a Supabase (T-032); solo actualiza los campos que llegan. */
   upsertUserFromSupabase(input: SupabaseUserInput): Promise<UserRecord>;
+  /** Obtiene los datos de un usuario por su ID de Supabase; null si no existe. */
+  getUser(supabaseUserId: string): Promise<UserRecord | null>;
 
   /** M7: palabra segura + flags; null si el usuario no existe. */
   getUserSecurity(userId: string): Promise<UserSecurity | null>;
@@ -165,6 +167,8 @@ export interface Repo {
   getSubjectInsights(userId: string): Promise<SubjectInsight[]>;
   /** M7 admin: todas las cuentas, más reciente primero. */
   listAllUsers(): Promise<AdminUserSummary[]>;
+  /** M7 admin: cambia el rol de un usuario. */
+  setUserRole(userId: string, role: UserRole): Promise<void>;
   /** M7 admin: overrides activos de `app_config` (vacío = todo por env vars). */
   getAiConfig(): Promise<Record<string, string>>;
   /** M7 admin: guarda un override; `updatedBy` es el email del admin, para auditoría. */

@@ -16,6 +16,9 @@ interface AdminDashboardState {
   editingValue: string;
   savingConfig: boolean;
   saveError: string;
+  editingRoleUserId: string | null;
+  editingRole: string;
+  savingRole: boolean;
 }
 
 export function AdminDashboard() {
@@ -30,6 +33,9 @@ export function AdminDashboard() {
     editingValue: "",
     savingConfig: false,
     saveError: "",
+    editingRoleUserId: null,
+    editingRole: "",
+    savingRole: false,
   });
 
   useEffect(() => {
@@ -160,6 +166,67 @@ export function AdminDashboard() {
     }
   };
 
+  const handleRoleEdit = (userId: string, currentRole: string) => {
+    setState((prev) => ({
+      ...prev,
+      editingRoleUserId: userId,
+      editingRole: currentRole,
+    }));
+  };
+
+  const handleRoleCancel = () => {
+    setState((prev) => ({
+      ...prev,
+      editingRoleUserId: null,
+      editingRole: "",
+    }));
+  };
+
+  const handleRoleSave = async () => {
+    if (!state.editingRoleUserId) return;
+
+    setState((prev) => ({
+      ...prev,
+      savingRole: true,
+    }));
+
+    try {
+      const res = await fetch("/api/admin/users/role", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          userId: state.editingRoleUserId,
+          role: state.editingRole,
+        }),
+      });
+
+      if (!res.ok) {
+        setState((prev) => ({
+          ...prev,
+          savingRole: false,
+        }));
+        return;
+      }
+
+      setState((prev) => ({
+        ...prev,
+        users: prev.users.map((u) =>
+          u.id === state.editingRoleUserId
+            ? { ...u, role: state.editingRole as "student" | "parent" | "super-admin" }
+            : u
+        ),
+        editingRoleUserId: null,
+        editingRole: "",
+        savingRole: false,
+      }));
+    } catch {
+      setState((prev) => ({
+        ...prev,
+        savingRole: false,
+      }));
+    }
+  };
+
   if (
     state.usersError === "Página no encontrada." ||
     state.configError === "Página no encontrada."
@@ -201,7 +268,54 @@ export function AdminDashboard() {
                     <td className="py-3 px-4">
                       {user.displayName || <span className="text-ink-soft italic">Sin nombre</span>}
                     </td>
-                    <td className="py-3 px-4">{user.role}</td>
+                    <td className="py-3 px-4">
+                      {state.editingRoleUserId === user.id ? (
+                        <div className="flex gap-2 items-center">
+                          <select
+                            value={state.editingRole}
+                            onChange={(e) =>
+                              setState((prev) => ({
+                                ...prev,
+                                editingRole: e.target.value,
+                              }))
+                            }
+                            disabled={state.savingRole}
+                            className="px-2 py-1 border border-ink-lighter rounded bg-surface-card focus:outline-none focus:ring-2 focus:ring-accent"
+                          >
+                            <option value="student">student</option>
+                            <option value="parent">parent</option>
+                            <option value="super-admin">super-admin</option>
+                          </select>
+                          <Button
+                            onClick={handleRoleSave}
+                            disabled={state.savingRole}
+                            variant="primary"
+                            size="md"
+                          >
+                            {state.savingRole ? "..." : "✓"}
+                          </Button>
+                          <Button
+                            onClick={handleRoleCancel}
+                            disabled={state.savingRole}
+                            variant="secondary"
+                            size="md"
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 items-center">
+                          {user.role}
+                          <Button
+                            onClick={() => handleRoleEdit(user.id, user.role)}
+                            variant="secondary"
+                            size="md"
+                          >
+                            Editar
+                          </Button>
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-ink-soft">
                       {new Date(user.createdAt).toLocaleDateString("es-ES")}
                     </td>

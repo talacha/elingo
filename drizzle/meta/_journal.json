@@ -15,6 +15,13 @@
       "when": 1789762083456,
       "tag": "0001_petite_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789776276863,
+      "tag": "0002_chunky_fallen_one",
+      "breakpoints": true
     }
   ]
 }

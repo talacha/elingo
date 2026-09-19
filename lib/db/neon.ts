@@ -23,6 +23,7 @@ import {
   users,
   type ChatSessionRow,
   type MessageRow,
+  type UserRole,
   type UserRow,
 } from "./schema";
 
@@ -134,6 +135,15 @@ export class NeonRepo implements Repo {
     return toUser(row);
   }
 
+  async getUser(supabaseUserId: string): Promise<UserRecord | null> {
+    const [row] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.supabaseUserId, supabaseUserId))
+      .limit(1);
+    return row ? toUser(row) : null;
+  }
+
   async getUserSecurity(userId: string): Promise<UserSecurity | null> {
     const [row] = await this.db
       .select({
@@ -197,6 +207,10 @@ export class NeonRepo implements Repo {
       .groupBy(users.id)
       .orderBy(desc(users.createdAt));
     return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  }
+
+  async setUserRole(userId: string, role: UserRole): Promise<void> {
+    await this.db.update(users).set({ role }).where(eq(users.id, userId));
   }
 
   async getAiConfig(): Promise<Record<string, string>> {

@@ -6,7 +6,7 @@ import { SUBJECTS } from "@/lib/contracts/chat";
  * Esquema de Neon (Postgres) en Drizzle. Fuente de verdad: tasks.md, sección 6.5.
  * El SQL versionado en drizzle/ se genera con `pnpm db:generate`; nunca se edita a mano.
  */
-export const USER_ROLES = ["student", "parent"] as const;
+export const USER_ROLES = ["student", "parent", "super-admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const MESSAGE_ROLES = ["user", "assistant", "system"] as const;
@@ -29,7 +29,7 @@ export const users = pgTable(
     allowVoice: boolean("allow_voice").notNull().default(true),
     allowText: boolean("allow_text").notNull().default(true),
   },
-  (t) => [check("users_role_check", sql`${t.role} in ('student', 'parent')`)],
+  (t) => [check("users_role_check", sql`${t.role} in ('student', 'parent', 'super-admin')`)],
 );
 
 /** M7: config de IA en caliente que un admin cambia desde /admin (tasks.md 6.13). Vacía = todo por env vars. */
