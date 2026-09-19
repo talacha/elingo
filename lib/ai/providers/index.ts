@@ -1,10 +1,10 @@
 import { AnthropicProvider } from "@/lib/ai/providers/anthropic";
 import { MockProvider } from "@/lib/ai/providers/mock";
 import { OpenRouterProvider } from "@/lib/ai/providers/openrouter";
-import type { AiConfigKey } from "@/lib/contracts/admin";
+import { applyAiConfigOverrides, type AiConfigOverrides } from "@/lib/ai/config";
 import type { TutorProvider } from "@/lib/contracts/ai";
 import { getRepo } from "@/lib/db";
-import { getEnv, resolveProvider, type Env, type ProviderName } from "@/lib/env";
+import { getEnv, resolveProvider, type Env } from "@/lib/env";
 
 export { AnthropicProvider } from "@/lib/ai/providers/anthropic";
 export { MockProvider, MOCK_MODEL } from "@/lib/ai/providers/mock";
@@ -43,10 +43,11 @@ export function resetProviderCache(): void {
  * No toca `getProvider`/`createProvider` (siguen usándose tal cual en todos los tests y llamadores
  * existentes) — es una capa aparte que solo entra en juego cuando un admin ha cambiado algo.
  */
-let overridesCache: { value: Partial<Record<AiConfigKey, string>>; expiresAt: number } | null = null;
+let overridesCache: { value: AiConfigOverrides; expiresAt: number } | null = null;
 const OVERRIDES_TTL_MS = 30_000;
 
-async function getAiConfigOverrides(): Promise<Partial<Record<AiConfigKey, string>>> {
+/** Overrides vigentes de /admin, con caché corta de proceso y fallback silencioso a `{}`. */
+export async function getAiConfigOverrides(): Promise<AiConfigOverrides> {
   if (overridesCache && overridesCache.expiresAt > Date.now()) return overridesCache.value;
   try {
     const value = await getRepo().getAiConfig();
@@ -69,12 +70,7 @@ export async function getProviderWithOverrides(env: Env = getEnv()): Promise<Tut
   const overrides = await getAiConfigOverrides();
   if (Object.keys(overrides).length === 0) return getProvider(env);
 
-  const effectiveEnv: Env = {
-    ...env,
-    ...(overrides.AI_PROVIDER ? { AI_PROVIDER: overrides.AI_PROVIDER as ProviderName } : {}),
-    ...(overrides.ANTHROPIC_MODEL ? { ANTHROPIC_MODEL: overrides.ANTHROPIC_MODEL } : {}),
-    ...(overrides.OPENROUTER_MODEL ? { OPENROUTER_MODEL: overrides.OPENROUTER_MODEL } : {}),
-  };
+  const effectiveEnv = applyAiConfigOverrides(env, overrides);
   const key = JSON.stringify([effectiveEnv.AI_PROVIDER, effectiveEnv.ANTHROPIC_MODEL, effectiveEnv.OPENROUTER_MODEL]);
   if (!overriddenCache || overriddenCache.key !== key) {
     overriddenCache = { key, provider: createProvider(effectiveEnv) };
@@ -82,7 +78,7 @@ export async function getProviderWithOverrides(env: Env = getEnv()): Promise<Tut
   return overriddenCache.provider;
 }
 
-/** Solo para tests. */
+/** Descarta las cachés de overrides: /admin lo llama tras guardar; también sirve a los tests. */
 export function resetAiConfigOverridesCache(): void {
   overridesCache = null;
   overriddenCache = null;

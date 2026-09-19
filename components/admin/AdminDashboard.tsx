@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { AI_CONFIG_KEYS, type AdminAiConfigResponse, type AdminUsersResponse, type AiConfigKey } from "@/lib/contracts/admin";
+import {
+  AI_CONFIG_KEYS,
+  PROVIDER_NAMES,
+  type AdminAiConfigResponse,
+  type AdminUsersResponse,
+  type AiConfigKey,
+} from "@/lib/contracts/admin";
 
 interface AdminDashboardState {
   usersLoading: boolean;
@@ -11,7 +17,8 @@ interface AdminDashboardState {
   users: AdminUsersResponse["users"];
   configLoading: boolean;
   configError: string;
-  config: Record<string, string>;
+  config: AdminAiConfigResponse["overrides"];
+  effective: AdminAiConfigResponse["effective"] | null;
   editingKey: AiConfigKey | null;
   editingValue: string;
   savingConfig: boolean;
@@ -19,6 +26,7 @@ interface AdminDashboardState {
   editingRoleUserId: string | null;
   editingRole: string;
   savingRole: boolean;
+  roleError: string;
 }
 
 export function AdminDashboard() {
@@ -29,6 +37,7 @@ export function AdminDashboard() {
     configLoading: true,
     configError: "",
     config: {},
+    effective: null,
     editingKey: null,
     editingValue: "",
     savingConfig: false,
@@ -36,6 +45,7 @@ export function AdminDashboard() {
     editingRoleUserId: null,
     editingRole: "",
     savingRole: false,
+    roleError: "",
   });
 
   useEffect(() => {
@@ -84,6 +94,7 @@ export function AdminDashboard() {
           setState((prev) => ({
             ...prev,
             config: configData.overrides,
+            effective: configData.effective,
             configError: "",
             configLoading: false,
           }));
@@ -106,7 +117,8 @@ export function AdminDashboard() {
     setState((prev) => ({
       ...prev,
       editingKey: key,
-      editingValue: prev.config[key] ?? "",
+      editingValue: prev.config[key] ?? prev.effective?.values[key] ?? "",
+      saveError: "",
     }));
   };
 
@@ -152,6 +164,7 @@ export function AdminDashboard() {
       setState((prev) => ({
         ...prev,
         config: data.overrides,
+        effective: data.effective,
         editingKey: null,
         editingValue: "",
         savingConfig: false,
@@ -171,6 +184,7 @@ export function AdminDashboard() {
       ...prev,
       editingRoleUserId: userId,
       editingRole: currentRole,
+      roleError: "",
     }));
   };
 
@@ -188,6 +202,7 @@ export function AdminDashboard() {
     setState((prev) => ({
       ...prev,
       savingRole: true,
+      roleError: "",
     }));
 
     try {
@@ -204,6 +219,7 @@ export function AdminDashboard() {
         setState((prev) => ({
           ...prev,
           savingRole: false,
+          roleError: "No se pudo cambiar el rol.",
         }));
         return;
       }
@@ -223,6 +239,7 @@ export function AdminDashboard() {
       setState((prev) => ({
         ...prev,
         savingRole: false,
+        roleError: "No se pudo cambiar el rol.",
       }));
     }
   };
@@ -253,6 +270,11 @@ export function AdminDashboard() {
           <p className="text-ink-soft">No hay usuarios.</p>
         ) : (
           <div className="overflow-x-auto">
+            {state.roleError && (
+              <p className="text-red-600 text-sm mb-2" role="alert">
+                {state.roleError}
+              </p>
+            )}
             <table className="w-full text-sm">
               <thead className="border-b border-ink-lighter">
                 <tr>
@@ -344,16 +366,42 @@ export function AdminDashboard() {
           </p>
         ) : (
           <div className="space-y-4">
+            {state.effective && (
+              <p className="text-sm rounded bg-surface px-3 py-2" data-testid="active-model">
+                Activo ahora: <strong>{state.effective.provider}</strong> ·{" "}
+                <strong>{state.effective.activeModel}</strong>
+              </p>
+            )}
             {AI_CONFIG_KEYS.map((key) => {
               const isEditing = state.editingKey === key;
-              const value = state.config[key];
-              const displayValue = value || "(usa la variable de entorno)";
+              const override = state.config[key];
+              const effectiveValue = state.effective?.values[key];
+              const displayValue = override
+                ? `${override} (cambiado desde /admin)`
+                : effectiveValue
+                  ? `${effectiveValue} (variable de entorno)`
+                  : "(usa la variable de entorno)";
 
               return (
                 <div key={key} className="flex items-end gap-2">
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-1">{key}</label>
-                    {isEditing ? (
+                    {isEditing && key === "AI_PROVIDER" ? (
+                      <select
+                        value={state.editingValue}
+                        onChange={(e) =>
+                          setState((prev) => ({ ...prev, editingValue: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 border border-ink-lighter rounded bg-surface-card focus:outline-none focus:ring-2 focus:ring-accent"
+                        disabled={state.savingConfig}
+                      >
+                        {PROVIDER_NAMES.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : isEditing ? (
                       <input
                         type="text"
                         value={state.editingValue}

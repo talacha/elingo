@@ -414,8 +414,15 @@ export declare function isAdminEmail(email: string | null | undefined): boolean;
 // lib/contracts/admin.ts
 export interface AdminUserSummary { id: string; displayName: string | null; role: UserRole; createdAt: string; sessionCount: number }
 export const AI_CONFIG_KEYS = ["AI_PROVIDER", "ANTHROPIC_MODEL", "OPENROUTER_MODEL"] as const;
-export const updateAiConfigSchema = z.object({ key: z.enum(AI_CONFIG_KEYS), value: z.string().min(1).max(200) });
+export const PROVIDER_NAMES = ["anthropic", "openrouter", "mock"] as const;
+export const updateAiConfigSchema = z.object({ key: z.enum(AI_CONFIG_KEYS), value: z.string().trim().min(1).max(200) }); // + refine: si key = AI_PROVIDER, value ∈ PROVIDER_NAMES
+export interface AdminAiConfigResponse {
+  overrides: Partial<Record<AiConfigKey, string>>;   // solo lo guardado en app_config
+  effective: { provider: ProviderName; activeModel: string; values: Record<AiConfigKey, string> };   // env vars + overrides: lo que usa el chat ahora
+}
 ```
+
+- `GET/PUT /api/admin/config` devuelven siempre `overrides` **y** `effective` (calculado en `lib/ai/config.ts`); `/admin` muestra `effective` para que sin overrides se vea el proveedor y modelo activos, no solo «usa la variable de entorno». `PUT` invalida la caché de overrides del proceso (`resetAiConfigOverridesCache()`); `GET /api/health` usa `getProviderWithOverrides`, así que también informa del modelo real.
 
 - `GET /api/admin/users` (lista) · `GET/PUT /api/admin/config` (overrides de `app_config`, leídos por `getProvider()`/`resolveProvider()` **antes** que las env vars, con caché corta de proceso y fallback silencioso a las env vars si `app_config` no existe o falla la consulta — nunca rompe el chat).
 - Sin sesión de Supabase autenticada con un email en `ADMIN_EMAILS`, `401`/`404` (no revela que la ruta existe).

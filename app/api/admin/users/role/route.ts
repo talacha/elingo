@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAdminEmail } from "@/lib/auth/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAdminEmail } from "@/lib/auth/adminGuard";
 import { getRepo } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -13,44 +12,23 @@ const updateRoleSchema = z.object({
 
 export async function PUT(req: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "not_found" },
-        { status: 404 }
-      );
+    if (!(await getAdminEmail())) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user?.email || !isAdminEmail(data.user.email)) {
-      return NextResponse.json(
-        { error: "not_found" },
-        { status: 404 }
-      );
-    }
-
-    const body = await req.json();
-    const parsed = updateRoleSchema.safeParse(body);
-
+    const parsed = updateRoleSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json(
-        {
-          error: "invalid_request",
-          message: "Parámetros inválidos",
-        },
-        { status: 400 }
+        { error: "invalid_request", message: "Parámetros inválidos" },
+        { status: 400 },
       );
     }
 
-    const repo = getRepo();
-    await repo.setUserRole(parsed.data.userId, parsed.data.role);
+    await getRepo().setUserRole(parsed.data.userId, parsed.data.role);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("[admin/users/role] PUT error:", error);
-    return NextResponse.json(
-      { error: "not_found" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
