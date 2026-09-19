@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ELI_SYSTEM_PROMPT, REFUSAL_MESSAGE, UPSTREAM_ERROR_MESSAGE } from "@/lib/ai/prompt";
+import { ELI_SYSTEM_PROMPT, REFUSAL_MESSAGE, REPLY_STYLE_HINT, UPSTREAM_ERROR_MESSAGE } from "@/lib/ai/prompt";
 import { OpenRouterProvider } from "@/lib/ai/providers/openrouter";
 import type { TutorReplyInput } from "@/lib/contracts/ai";
 import { getEnv, resetEnvCache } from "@/lib/env";
@@ -101,13 +101,16 @@ describe("OpenRouterProvider", () => {
       max_tokens: 1024,
       stream: true,
       usage: { include: true },
+      // El razonamiento de los modelos que lo separan no debe viajar en la respuesta.
+      reasoning: { exclude: true },
     });
-    // 1 system message + 3 input messages = 4 total
-    expect(body.messages).toHaveLength(4);
+    // 2 mensajes de sistema (prompt literal + pista de estilo) + 3 turnos = 5 en total
+    expect(body.messages).toHaveLength(5);
     expect(body.messages[0]).toEqual({
       role: "system",
       content: ELI_SYSTEM_PROMPT,
     });
+    expect(body.messages[1]).toEqual({ role: "system", content: REPLY_STYLE_HINT });
   });
 
   it("envía los encabezados correctos: Authorization, HTTP-Referer, X-Title", async () => {
@@ -305,10 +308,14 @@ describe("OpenRouterProvider", () => {
     process.env.OPENROUTER_API_KEY = "test-key";
     resetEnvCache();
 
+    // Cada trozo es largo: el arranque se retiene hasta 60 caracteres para descartar razonamiento filtrado.
+    const a = "a".repeat(40);
+    const b = "b".repeat(40);
+    const c = "c".repeat(40);
     const chunks = [
-      'data: {"choices": [{"delta": {"content": "a"}}]}',
-      'data: {"choices": [{"delta": {"content": "b"}}]}',
-      'data: {"choices": [{"delta": {"content": "c"}}]}',
+      `data: {"choices": [{"delta": {"content": "${a}"}}]}`,
+      `data: {"choices": [{"delta": {"content": "${b}"}}]}`,
+      `data: {"choices": [{"delta": {"content": "${c}"}}]}`,
     ];
     fetchSpy.mockResolvedValue(createSSEResponse(chunks));
 
@@ -323,7 +330,9 @@ describe("OpenRouterProvider", () => {
       results.push(value);
     }
 
-    expect(results).toEqual(["a", "b", "c"]);
+    // El arranque retenido sale junto; el resto sigue en streaming, en orden y sin repetir.
+    expect(results.join("")).toBe(a + b + c);
+    expect(results.length).toBeGreaterThan(1);
   });
 
   it("detecta [DONE] y termina", async () => {
@@ -381,8 +390,8 @@ describe("OpenRouterProvider", () => {
         { type: "image_url", image_url: { url: "data:image/png;base64,ZmFrZQ==" } },
       ],
     });
-    // Los turnos sin imagen siguen siendo texto plano.
-    expect(body.messages[1]).toEqual({ role: "user", content: input.messages[0].content });
+    // Los turnos sin imagen siguen siendo texto plano (tras los dos mensajes de sistema).
+    expect(body.messages[2]).toEqual({ role: "user", content: input.messages[0].content });
   });
 
   it("T-051: con OPENROUTER_FALLBACK_MODEL, reintenta una vez si el modelo principal falla antes de emitir texto", async () => {
@@ -421,7 +430,9 @@ describe("OpenRouterProvider", () => {
         if (!delivered) {
           delivered = true;
           controller.enqueue(
-            new TextEncoder().encode('data: {"choices": [{"delta": {"content": "Vamos"}}]}\n'),
+            new TextEncoder().encode(
+              'data: {"choices": [{"delta": {"content": "Vamos a resolverlo paso a paso, empezando por los datos que tienes."}}]}\n',
+            ),
           );
           return;
         }
@@ -432,7 +443,7 @@ describe("OpenRouterProvider", () => {
 
     const provider = new OpenRouterProvider();
     const { stream, done } = await provider.reply(input);
-    expect(await readAll(stream)).toContain("Vamos");
+    expect(await readAll(stream)).toContain("Vamos a resolverlo");
     expect((await done).stopReason).toBe("error");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });

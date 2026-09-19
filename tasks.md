@@ -202,6 +202,10 @@ const final = await stream.finalMessage();          // final.usage, final.stop_r
 - Opcional (`ANTHROPIC_FALLBACK_MODEL`): `client.beta.messages.stream({ betas: ["server-side-fallback-2026-06-01"], fallbacks: [{ model }], ... })`.
 - El prompt de sistema (~200 tokens) está por debajo del mínimo cacheable; `cache_control` se deja puesto y se comprueba con `usage.cache_read_input_tokens`.
 - Selección de proveedor: `AI_PROVIDER` explícito; si no, `anthropic` cuando hay `ANTHROPIC_API_KEY`, `openrouter` cuando solo hay `OPENROUTER_API_KEY`, y `mock` en cualquier otro caso.
+- **OpenRouter: la niña solo ve la respuesta final (T-080).** Tres capas, en `lib/ai/providers/openrouter.ts` + `replyFilter.ts`:
+  1. La petición lleva `reasoning: { exclude: true }` y un segundo mensaje de sistema, `REPLY_STYLE_HINT` (`lib/ai/prompt.ts`; el literal de `north_star.md` no se toca): responder solo con el mensaje final, sin mostrar análisis, en el idioma del estudiante (español por defecto).
+  2. `ReplyFilter` recorta los bloques `<think>…</think>` y retiene los primeros 60 caracteres para detectar una respuesta que **arranca como razonamiento en claro** («Here's a thinking process: 1. Analyze User Input…»). Si es así se descarta entera (no hay forma fiable de separar el borrador de la respuesta) y cuenta como intento fallido.
+  3. Un intento **fallido, colgado o filtrado** se reintenta UNA vez con `OPENROUTER_FALLBACK_MODEL` (`base_fallback_model`, solo sin foto). «Colgado» = ningún texto visible en `OPENROUTER_FIRST_TOKEN_TIMEOUT_MS` (20 s): así un modelo gratuito saturado no agota los 60 s de la función y devuelve un 504. Si el respaldo también falla, la niña ve `UPSTREAM_ERROR_MESSAGE`, nunca el razonamiento.
 - `MockProvider`: determinista, socrático, con negritas y viñetas, emite ~6 chunks con `MOCK_DELAY_MS` (0 en tests); si el último mensaje pide la solución ("dame la respuesta", "cuál es el resultado", "solución"), responde redirigiendo. Nunca contiene un resultado numérico final.
 
 ### 6.3 Rate limit y cola
@@ -284,7 +288,8 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `OPENROUTER_API_KEY` | vacío | T-019 |
 | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` = `base_model` (antes `deepseek/deepseek-v4-flash-0731:free`, y antes `anthropic/claude-fable-5.1`, que duplicaba coste sin motivo) | T-019, T-051, T-077 |
 | `OPENROUTER_VISION_MODEL` | `google/gemma-4-31b-it:free` = `visual_model` (gratis; entiende imagen y vídeo, no genera) | T-051, T-077, T-078 |
-| `OPENROUTER_FALLBACK_MODEL` | vacío → sin reintento | T-051 |
+| `OPENROUTER_FALLBACK_MODEL` | `deepseek/deepseek-v4-flash-0731:free` = `base_fallback_model` (antes vacío → sin reintento). Un valor vacío ya no lo desactiva: vale el de por defecto | T-051, T-080 |
+| `OPENROUTER_FIRST_TOKEN_TIMEOUT_MS` | `20000`: si un intento no da texto visible en ese tiempo se aborta y se pasa al respaldo | T-080 |
 | `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` = `stt_model` (de pago, ~$0,012/hora de audio; no hay STT gratuito) | T-052, T-078 |
 | `OPENROUTER_TTS_MODEL` | `fish-audio/s2.1-pro-free:free` = `tts_model` (gratis, sin garantías de disponibilidad) | T-053, T-078 |
 | `OPENROUTER_TTS_VOICE` | vacío → sin `voice` (solo vale si el proveedor tiene una por defecto) | T-078 |

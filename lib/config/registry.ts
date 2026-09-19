@@ -66,6 +66,17 @@ export const CONFIG_PARAMS = [
     editable: true,
   },
   {
+    key: "base_fallback_model",
+    envKey: "OPENROUTER_FALLBACK_MODEL",
+    label: "Modelo base de respaldo",
+    description:
+      "Se prueba una vez si el modelo base falla, no responde a tiempo o devuelve su razonamiento en vez de una respuesta (solo en preguntas sin foto).",
+    category: "modelos",
+    kind: "model",
+    capability: "text",
+    editable: true,
+  },
+  {
     key: "visual_model",
     envKey: "OPENROUTER_VISION_MODEL",
     label: "Modelo visual",
