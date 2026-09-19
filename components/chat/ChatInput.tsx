@@ -6,6 +6,7 @@ import { cn } from "@/components/ui/cn";
 import type { Subject, ImageMimeType } from "@/lib/contracts/chat";
 import type { ChatCapabilities } from "@/app/api/chat/capabilities/route";
 import { useSpeechInput } from "./useSpeechInput";
+import { VoiceButton } from "./VoiceButton";
 import { compressImageFile } from "./imageCompress";
 
 /** Límite de entrada del servidor (`AI_MAX_INPUT_CHARS`, tasks.md 6.6). */
@@ -51,26 +52,6 @@ function StopIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4" fill="currentColor">
       <rect x="5" y="5" width="14" height="14" rx="3" />
-    </svg>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="size-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 2c-1.104 0-2 .896-2 2v8c0 1.104.896 2 2 2s2-.896 2-2V4c0-1.104-.896-2-2-2z" />
-      <path d="M7 12a5 5 0 0 0 10 0" />
-      <path d="M12 18v3" />
-      <path d="M9 21h6" />
     </svg>
   );
 }
@@ -210,25 +191,9 @@ export function ChatInput({
           className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-ink-soft"
         />
 
-        {/* Botón de micrófono */}
+        {/* Botón de micrófono mejorado */}
         {speechInput.status !== "unsupported" && capabilities.allowVoice && (
-          <button
-            type="button"
-            disabled={streaming}
-            onMouseDown={() => speechInput.start()}
-            onMouseUp={() => speechInput.stop()}
-            onMouseLeave={() => speechInput.stop()}
-            onTouchStart={() => speechInput.start()}
-            onTouchEnd={() => speechInput.stop()}
-            aria-label="Grabar voz"
-            className={cn(
-              "grid size-11 shrink-0 place-items-center rounded-full text-on-primary shadow-lift transition-[background-color,translate] duration-150 ease-out hover:-translate-y-px motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-              speechInput.status === "listening" ? "bg-peach hover:bg-peach-deep" : "bg-surface-2 hover:bg-surface-3 text-ink",
-              "disabled:pointer-events-none disabled:opacity-50",
-            )}
-          >
-            <MicIcon />
-          </button>
+          <VoiceButton speechInput={speechInput} streaming={streaming} />
         )}
 
         {/* Botón de cámara */}
