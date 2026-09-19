@@ -584,6 +584,7 @@ Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea*
 | T-087 | M9 | FE | done | T-014 | 0 | 2026-09-18 · PR #51 · «ELI está pensando…» rota frases amables con una animación suave, accesible y sin movimiento con `prefers-reduced-motion` |
 | T-088 | M9 | FE | in-progress | T-081 | 0 | 2026-09-18 · PR #52 · sin asignaturas (Mates/Lengua/Ciencias) en la UI ni en la API; `/parents` muestra un único resumen de actividad; tareas en español o inglés. Sustituye a T-082 (PR #46, cerrado: deducir la asignatura ya no tiene sentido) |
 | T-089 | M9 | HU | in-progress | T-088 | 0 | 2026-09-18 · `north_star.md` (reglas de producto, prompt sin asignaturas, criterios, decisiones), `roadmap.md` (M9), `tasks.md`, README y `CLAUDE.md` alineados con las decisiones del propietario |
+| T-090 | M9 | FE | in-progress | T-087 | 0 | 2026-09-18 · «ELI está pensando…» escribe cada frase letra a letra con un cursor, lo deja parpadear 3 veces, la borra rápido y escribe la siguiente (`components/chat/typewriter.ts`); sustituye el brillo y los puntos de T-087; con `prefers-reduced-motion` la frase aparece entera y cambia sin escribir ni borrar |
 
 ## 8. Detalle de tareas
 
