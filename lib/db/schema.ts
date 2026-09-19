@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { SUBJECTS } from "@/lib/contracts/chat";
 
 /**
@@ -25,7 +35,9 @@ export const users = pgTable(
     createdAt: timestamptz("created_at").notNull().defaultNow(),
     /** M7: hash (scrypt + sal) de la palabra segura que protege /parents; null = aún no la fijó. */
     safeWordHash: text("safe_word_hash"),
+    /** OBSOLETA: ya no se lee. Imágenes y voz son los flags `image_mode`/`voice_mode` de `account_flags`. */
     allowImages: boolean("allow_images").notNull().default(true),
+    /** OBSOLETA: ver `allowImages`. */
     allowVoice: boolean("allow_voice").notNull().default(true),
     allowText: boolean("allow_text").notNull().default(true),
   },
@@ -40,6 +52,26 @@ export const appConfig = pgTable("app_config", {
   updatedBy: text("updated_by"),
 });
 export type AppConfigRow = typeof appConfig.$inferSelect;
+
+/**
+ * Feature flags por cuenta: solo las filas que se apartan del valor global (ausente = sigue al
+ * global). El valor global de cada flag vive en `app_config` con la clave `flag.<nombre>`.
+ * Fuente de verdad de las claves: lib/config/registry.ts.
+ */
+export const accountFlags = pgTable(
+  "account_flags",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    flag: text("flag").notNull(),
+    enabled: boolean("enabled").notNull(),
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+    updatedBy: text("updated_by"),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.flag] })],
+);
+export type AccountFlagRow = typeof accountFlags.$inferSelect;
 
 export const chatSessions = pgTable(
   "chat_sessions",

@@ -208,7 +208,7 @@ describe("getProvider", () => {
     const provider = getProvider();
     expect(provider).toBeInstanceOf(OpenRouterProvider);
     expect(provider.name).toBe("openrouter");
-    expect(provider.model).toBe("deepseek/deepseek-v4-flash-0731:free");
+    expect(provider.model).toBe("nvidia/nemotron-3.5-lightning:free");
   });
 
   it("memoiza la instancia por entorno", () => {

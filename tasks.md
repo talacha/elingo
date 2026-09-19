@@ -282,10 +282,10 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `ANTHROPIC_EFFORT` | `low` (`low` \| `medium` \| `high`) | T-011 |
 | `ANTHROPIC_FALLBACK_MODEL` | vacío → sin fallbacks | T-011 |
 | `OPENROUTER_API_KEY` | vacío | T-019 |
-| `OPENROUTER_MODEL` | `deepseek/deepseek-v4-flash-0731:free` (antes `anthropic/claude-fable-5.1`: enrutaba a Fable vía OpenRouter, duplicando coste sin motivo) | T-019, T-051 |
-| `OPENROUTER_VISION_MODEL` | `inclusionai/ling-3.0-flash-vl:free` | T-051 |
+| `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` = `base_model` (antes `deepseek/deepseek-v4-flash-0731:free`, y antes `anthropic/claude-fable-5.1`, que duplicaba coste sin motivo) | T-019, T-051, T-077 |
+| `OPENROUTER_VISION_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` = `visual_model` | T-051, T-077 |
 | `OPENROUTER_FALLBACK_MODEL` | vacío → sin reintento | T-051 |
-| `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` | T-052 |
+| `OPENROUTER_TRANSCRIBE_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` = `speech_model` | T-052, T-077 |
 | `FISH_AUDIO_API_KEY` | vacío → sin voz de Fish Audio (cae a `speechSynthesis` del navegador) | T-053 |
 | `FISH_AUDIO_MODEL` | `s2.1-pro-free` | T-053 |
 | `ADMIN_EMAILS` | vacío → `/admin` inaccesible para cualquiera | T-066 |
@@ -341,7 +341,8 @@ export declare function transcribeAudio(input: { audio: string; mimeType: string
 ```
 
 - `POST /api/transcribe`: `200 { text }`; `204` (sin cuerpo) si no hay `OPENROUTER_API_KEY` o falla el proveedor — el cliente ya debería haber intentado `SpeechRecognition` del navegador antes de llegar aquí; `400 invalid_request`; `429 rate_limited` (misma cookie/ip que el chat, contador propio `transcribe:<clave>`).
-- Vía OpenRouter, endpoint dedicado `POST https://openrouter.ai/api/v1/audio/transcriptions` (no es `/chat/completions`), modelo `OPENROUTER_TRANSCRIBE_MODEL`.
+- Vía OpenRouter `POST https://openrouter.ai/api/v1/chat/completions` con una parte `input_audio` (`{ data, format }`) y el `speech_model` (`OPENROUTER_TRANSCRIBE_MODEL`, un modelo con entrada de audio); responde `choices[0].message.content`. Antes se usaba el endpoint dedicado `/audio/transcriptions` con Whisper. Salvedad: OpenRouter documenta wav/mp3 (y algunos más según el modelo); `MediaRecorder` de Chrome entrega `audio/webm`, que el modelo puede rechazar → se degrada a `204` como cualquier fallo (Chrome usa `SpeechRecognition` nativo antes que esta ruta).
+- El modo voz es el flag `voice_mode` (6.13): apagado → `204`.
 - Entrada preferida del cliente (T-054): `SpeechRecognition` nativo (sin backend, sin coste, sin clave); solo si el navegador no lo soporta (Firefox, Safari/Chrome de iOS) se graba con `MediaRecorder` y se sube aquí.
 
 ### 6.9 Síntesis de voz (salida)
@@ -405,61 +406,69 @@ export const PARENT_UNLOCK_COOKIE = "eli_parent_unlock";
 
 `/api/chat` (imagen), `/api/speech` (voz) y `/api/transcribe` (voz) leen `allowImages`/`allowVoice`/`allowText` del usuario autenticado (si lo hay) antes de aceptar ese contenido; sin sesión (chat anónimo), se permite todo como hoy — los flags son un control parental sobre una cuenta, no aplican a nadie sin cuenta. Rechazo: mismo `ChatError` con `"invalid_request"` y mensaje amable, nunca un 500.
 
-### 6.13 Administración (`/admin`)
+### 6.13 Configuración y feature flags (`/admin`)
+
+**Qué es configuración.** Todo lo ajustable en caliente está definido **una sola vez** en `lib/config/registry.ts` (clave, descripción, tipo, rango, si es editable). Los secretos y las conexiones (API keys, `DATABASE_URL`, Redis, QStash, Supabase, `ADMIN_EMAILS`) **no** están ahí: siguen en variables de entorno, porque hacen falta para llegar a la base de datos y no deben guardarse en ella.
+
+| Clave | Env var que sobrescribe | Valor por defecto | Editable en `/admin` |
+|---|---|---|---|
+| `ai_provider` | `AI_PROVIDER` | auto (`anthropic` si hay clave, si no `openrouter`, si no `mock`) | sí (`anthropic` \| `openrouter` \| `mock`) |
+| `base_model` | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` (alternativa: `openrouter/free`) | sí, debe aceptar texto |
+| `visual_model` | `OPENROUTER_VISION_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | sí, debe aceptar imágenes |
+| `speech_model` | `OPENROUTER_TRANSCRIBE_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | sí, debe aceptar audio |
+| `anthropic_model` | `ANTHROPIC_MODEL` | `claude-fable-5-1` | sí |
+| `tts_model` | `FISH_AUDIO_MODEL` | `s2.1-pro-free` | sí |
+| `ai_max_output_tokens` · `ai_window_pairs` · `ai_max_input_chars` | `AI_MAX_OUTPUT_TOKENS` · `AI_WINDOW_PAIRS` · `AI_MAX_INPUT_CHARS` | `1024` · `6` · `1000` | sí (enteros con rango) |
+| `rate_limit_max` · `rate_limit_window` · `daily_token_budget` | `RATE_LIMIT_MAX` · `RATE_LIMIT_WINDOW` · `DAILY_TOKEN_BUDGET` | `20` · `10 m` · `2000000` | no: se fijan al arrancar (solo lectura) |
+
+**Por qué esos modelos.** El catálogo público de OpenRouter dice que `nvidia/nemotron-3.5-lightning:free` es **solo texto** → sirve de `base_model`, no de modelo visual ni de voz. `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` acepta texto, imagen, audio y vídeo (salida: texto) y es gratis → modelo visual y de voz. OpenRouter no tiene ningún modelo gratuito que **hable**: la síntesis (`tts_model`) sigue siendo Fish Audio con la voz del navegador (`speechSynthesis`) de respaldo.
+
+**Precedencia** de un parámetro: fila de `app_config` (Postgres) > variable de entorno > valor por defecto de `lib/env.ts`.
+
+**Almacenamiento.** `app_config(key, value, updated_at, updated_by)` en Postgres es la fuente de verdad. Lee y escribe `lib/config/store.ts`, detrás de `lib/config/cache.ts`: memoria del proceso (5 s) → **Redis** `eli:cfg:*` (5 min) → Postgres. Cada escritura borra la clave de Redis y la de memoria; otra instancia ve el cambio en ≤ 5 s. Sin Redis solo hay memoria; con Redis o Postgres caídos se usa el último valor conocido: la config nunca rompe el chat.
+
+**Feature flags.** Un flag se puede apagar para todos (fila `flag.<nombre>` de `app_config`) y, además, por cuenta (tabla `account_flags(user_id, flag, enabled, updated_at, updated_by)`, solo las filas que se apartan del global). Está activo si lo está el global **y** la cuenta no lo ha apagado; la alumna anónima solo depende del global. Se decide en `lib/config/flags.ts` (`getEffectiveFlags(userId?)`), con la misma caché (`eli:cfg:flags:<userId>`).
+
+| Flag | Parte de la interfaz | Se aplica en |
+|---|---|---|
+| `voice_mode` | botón de micrófono y «Escuchar» | `GET /api/chat/capabilities` (`allowVoice`) · `POST /api/transcribe` y `POST /api/speech` → `204` |
+| `image_mode` | botón de cámara / adjuntar imagen | `GET /api/chat/capabilities` (`allowImages`) · `POST /api/chat` con imagen → `400 invalid_request` |
+
+Los interruptores de `/parents` (`allowImages`, `allowVoice`) **son** estos flags por cuenta: `PATCH /api/parents/settings` los escribe con `setAccountFlag` y `repo.getUserSecurity/updateUserFlags` los leen de `account_flags`. `allowText` sigue en `users`. Las columnas `users.allow_images/allow_voice` ya no se leen (la migración `0004` copia a `account_flags` las que estaban apagadas).
 
 ```ts
-// lib/auth/admin.ts
-export declare function isAdminEmail(email: string | null | undefined): boolean;   // contra ADMIN_EMAILS
-
 // lib/contracts/admin.ts
-export interface AdminUserSummary { id: string; displayName: string | null; role: UserRole; createdAt: string; sessionCount: number }
-export const AI_CONFIG_KEYS = ["AI_PROVIDER", "ANTHROPIC_MODEL", "OPENROUTER_MODEL"] as const;
-export const PROVIDER_NAMES = ["anthropic", "openrouter", "mock"] as const;
-export const updateAiConfigSchema = z.object({ key: z.enum(AI_CONFIG_KEYS), value: z.string().trim().min(1).max(200) }); // + refine: si key = AI_PROVIDER, value ∈ PROVIDER_NAMES
-export interface AdminAiConfigResponse {
-  overrides: Partial<Record<AiConfigKey, string>>;   // solo lo guardado en app_config
-  effective: { provider: ProviderName; activeModel: string; values: Record<AiConfigKey, string> };   // env vars + overrides: lo que usa el chat ahora
-}
+export const FLAG_KEYS = ["voice_mode", "image_mode"] as const;
+export interface AdminConfigParam { key; label; description; category: "ia" | "modelos" | "voz" | "limites"; kind; options?; capability?: "text" | "image" | "audio"; editable: boolean; value: string; source: "db" | "env" }
+export interface AdminFlag { key: FlagKey; label; description; ui: string; enabled: boolean }            // enabled = valor global
+export interface AdminConfigResponse { provider: string; activeModel: string; params: AdminConfigParam[]; flags: AdminFlag[] }
+export interface AdminUserSummary { id; displayName; role; createdAt; sessionCount; flagOverrides: Partial<Record<FlagKey, boolean>> }
 ```
 
-- `GET/PUT /api/admin/config` devuelven siempre `overrides` **y** `effective` (calculado en `lib/ai/config.ts`); `/admin` muestra `effective` para que sin overrides se vea el proveedor y modelo activos, no solo «usa la variable de entorno». `PUT` invalida la caché de overrides del proceso (`resetAiConfigOverridesCache()`); `GET /api/health` usa `getProviderWithOverrides`, así que también informa del modelo real.
-
-- `GET /api/admin/users` (lista) · `GET/PUT /api/admin/config` (overrides de `app_config`, leídos por `getProvider()`/`resolveProvider()` **antes** que las env vars, con caché corta de proceso y fallback silencioso a las env vars si `app_config` no existe o falla la consulta — nunca rompe el chat).
-- Sin sesión de Supabase autenticada con un email en `ADMIN_EMAILS`, `401`/`404` (no revela que la ruta existe).
+- `GET /api/admin/config` → `AdminConfigResponse` (valores **efectivos**, no solo lo guardado: así `/admin` muestra el proveedor y el modelo activos aunque no haya ninguna fila).
+- `PUT /api/admin/config` `{ key, value }` guarda un parámetro; `DELETE /api/admin/config` `{ key }` lo quita (vuelve a la env var). Valida contra el registro (rango, proveedor conocido) y los modelos contra el catálogo de OpenRouter (`lib/config/modelCatalog.ts`, caché 1 h): rechaza con `400` un modelo que no existe o que no acepta la entrada que necesita; si el catálogo no responde, guarda igualmente.
+- `PUT /api/admin/flags` `{ flag, enabled }`: flag global · `PUT /api/admin/users/flags` `{ userId, flag, enabled: boolean | null }`: flag de una cuenta (`null` = quitar el override) · `GET /api/admin/users` (lista, con `flagOverrides`) · `PUT /api/admin/users/role`.
+- Sin sesión de Supabase autenticada con un email en `ADMIN_EMAILS`, `404` (no revela que la ruta existe). Errores inesperados: `500 internal_error`.
 - Esto no es un agente cambiando el modelo de producción por su cuenta (prohibido en `tasks.md` §4 fuera de T-045): es la vía para que un humano autenticado lo haga sin pasar por Vercel. La responsabilidad de quién tiene acceso vive en `ADMIN_EMAILS`, que un agente nunca rellena con su propio criterio.
 
-### 6.14 Hot-reload del modelo (`T-072` documentación)
-
-**Flujo completo de cambio de modelo en caliente (sin redeploy)**:
+### 6.14 Hot-reload de la configuración
 
 1. **Admin se autentica**: Supabase Auth con email en `ADMIN_EMAILS` (ver 6.13).
-2. **Admin abre `/admin`**: Frontend llama a `GET /api/admin/users` y `GET /api/admin/config` para ver el estado actual. El campo `overrides` contiene los cambios guardados hasta ahora (ej. `{ "AI_PROVIDER": "openrouter" }` si se ha cambiado de proveedor).
-3. **Admin cambia el modelo**: Frontend hace `PUT /api/admin/config` con `{ "key": "ANTHROPIC_MODEL", "value": "claude-sonnet-5" }`. El request:
-   - Se valida en el servidor (zod: `key` debe estar en `AI_CONFIG_KEYS`, `value` entre 1-200 chars).
-   - Se guarda en la tabla `app_config` de Neon (o en memoria sin DB): `INSERT INTO app_config (key, value, updated_by, updated_at) VALUES (...) ON CONFLICT (key) DO UPDATE SET value = ..., updated_at = now()`.
-   - Se devuelve `200 { overrides: {...} }` al cliente (el estado íntegro después del cambio).
-4. **Cache de proceso se invalida**: `getProviderWithOverrides()` en `lib/ai/providers/index.ts` mantiene dos cachés:
-   - `overridesCache`: contiene el resultado de `getAiConfig()` de la DB; TTL 30 segundos (`OVERRIDES_TTL_MS`).
-   - `overriddenCache`: contiene el proveedor creado con esos overrides aplicados.
-   - Cuando expira el TTL (30 s) **o** alguien llama a `resetAiConfigOverridesCache()`, la siguiente llamada a `getProviderWithOverrides()` re-consulta la DB.
-5. **Siguiente petición `/api/chat` usa el nuevo modelo**: El handler de chat importa `getProviderWithOverrides` (no `getProvider`), lo que:
-   - Lee el caché de overrides (si aún es fresco, sin ir a BD).
-   - Si hay overrides, crea un proveedor con `effectiveEnv` (env vars + overrides).
-   - Si no hay overrides, delega a `getProvider()` (idéntico al comportamiento sin T-067).
-   - Devuelve la respuesta con cabecera `x-model` reflejando el modelo usado.
+2. **Admin abre `/admin`**: `GET /api/admin/users` y `GET /api/admin/config` devuelven el estado efectivo (proveedor y modelo activos, cada parámetro con su origen `db`/`env`, flags globales y por cuenta).
+3. **Admin cambia algo**: `PUT /api/admin/config` (parámetro), `PUT /api/admin/flags` (flag global) o `PUT /api/admin/users/flags` (flag de una cuenta). Se valida, se escribe en Postgres (`INSERT ... ON CONFLICT DO UPDATE`, con `updated_by` = email del admin) y se **invalida la caché** (memoria + Redis).
+4. **Siguiente petición**: `/api/chat` llama a `getProviderWithOverrides()` y a `getEffectiveEnv()` (`lib/config/effective.ts`), que leen la config por la caché y la aplican sobre las env vars (`ai_provider`, modelos, `ai_max_output_tokens`, `ai_window_pairs`, `ai_max_input_chars`). `/api/transcribe` y `/api/speech` usan el mismo env efectivo. `x-model` refleja el modelo usado y `GET /api/health` informa del proveedor/modelo activos.
+5. **Otras instancias** ven el cambio cuando caduca su memoria (≤ 5 s); con Redis, sin volver a Postgres.
 
-**Comportamiento sin `/admin` (caso por defecto)**: Sin cambios. `getProvider()` se usa directamente, `app_config` nunca se consulta, todo sigue siendo gobernado por env vars.
+**Comportamiento sin `/admin` (caso por defecto)**: `app_config` vacía → `getEffectiveEnv()` devuelve el mismo `env` y todo lo gobiernan las env vars.
 
-**Fallback graceful**: Si:
-- Neon está caído o `DATABASE_URL` falta (MemoryRepo): `getAiConfig()` lanza, se captura en `getAiConfigOverrides()`, se devuelve `{}` (ningún override), y se comporta como antes.
-- El email en `ADMIN_EMAILS` cambia durante una sesión: la siguiente petición `/api/admin/*` devuelve `404` (el check de `isAdminEmail()` es fresh en cada petición).
-- Un admin intenta poner un valor inválido (ej. un `ANTHROPIC_MODEL` que no existe): se guarda en `app_config`, pero en `/api/chat` el proveedor lanzará un error real (que de por sí es capturado y se devuelve como `upstream_error` amable).
+**Fallback graceful**:
+- Postgres caído o `DATABASE_URL` ausente (`MemoryRepo`): se usa el último valor conocido (vacío al arrancar) y se comporta como antes.
+- Redis caído o sin credenciales: se salta ese nivel; nunca lanza.
+- Un valor guardado que ya no valida (p. ej. un proveedor desconocido de antes de existir la validación) se ignora: nunca deja el chat sin proveedor.
+- Los flags fallan **abiertos**: si no se pueden leer, la función queda activa (como antes), nunca se bloquea a la alumna por un fallo de infraestructura.
+- El email en `ADMIN_EMAILS` cambia durante una sesión: la siguiente petición `/api/admin/*` devuelve `404` (el check es fresh en cada petición).
 
-**Datos y auditoría**: La columna `updated_by` en `app_config` guarda el email del admin que hizo el cambio, para auditoría. No hay timestamp de lectura, solo de escritura (`updated_at`).
-
-**Tests**: 
-- `tests/api/admin/config.test.ts`: valida GET (sin auth → 404, con admin → 200 + overrides), PUT (validación zod, guardado idempotente, lectura fresca tras escribir).
-- `tests/ai/providerOverrides.test.ts`: valida que `getProviderWithOverrides()` respeta los overrides en `app_config` y degrada gracefully si falla la lectura de BD.
+**Tests**: `tests/config/*` (registro, precedencia, caché memoria→Redis→Postgres con Redis simulado, flags global Y cuenta), `tests/api/admin/config.test.ts` y `tests/api/admin/flags.test.ts` (API), `tests/api/flags-enforcement.test.ts` (los flags se aplican en chat/voz/capabilities/parents), `tests/db/repo.test.ts` (`account_flags`, `deleteAiConfig`), `tests/ai/providerOverrides.test.ts`, `tests/ai/transcribe.test.ts`.
 
 ## 7. Tabla de estado
 

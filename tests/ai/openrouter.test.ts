@@ -71,7 +71,7 @@ describe("OpenRouterProvider", () => {
   it("se identifica como openrouter y usa el modelo del entorno", () => {
     const provider = new OpenRouterProvider({ env: getEnv() });
     expect(provider.name).toBe("openrouter");
-    expect(provider.model).toBe("deepseek/deepseek-v4-flash-0731:free");
+    expect(provider.model).toBe("nvidia/nemotron-3.5-lightning:free");
   });
 
   it("hace una petición POST a openrouter.ai con modelo, max_tokens, stream y usage", async () => {
@@ -97,7 +97,7 @@ describe("OpenRouterProvider", () => {
 
     const body = JSON.parse(call[1]?.body as string);
     expect(body).toMatchObject({
-      model: "deepseek/deepseek-v4-flash-0731:free",
+      model: "nvidia/nemotron-3.5-lightning:free",
       max_tokens: 1024,
       stream: true,
       usage: { include: true },
@@ -145,7 +145,7 @@ describe("OpenRouterProvider", () => {
 
     const result = await done;
     expect(result.stopReason).toBe("end_turn");
-    expect(result.model).toBe("deepseek/deepseek-v4-flash-0731:free");
+    expect(result.model).toBe("nvidia/nemotron-3.5-lightning:free");
   });
 
   it("captura usage del evento SSE y lo devuelve en done", async () => {
@@ -346,7 +346,7 @@ describe("OpenRouterProvider", () => {
 
   it("T-051: identifica el modelo de visión del entorno", () => {
     const provider = new OpenRouterProvider({ env: getEnv() });
-    expect(provider.visionModel).toBe("inclusionai/ling-3.0-flash-vl:free");
+    expect(provider.visionModel).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
   });
 
   it("T-051: con imagen en el último turno, usa OPENROUTER_VISION_MODEL y content multimodal", async () => {
@@ -370,10 +370,10 @@ describe("OpenRouterProvider", () => {
     const provider = new OpenRouterProvider();
     const { stream, done } = await provider.reply(withImage);
     expect(await readAll(stream)).toBe("Veo la foto");
-    expect((await done).model).toBe("inclusionai/ling-3.0-flash-vl:free");
+    expect((await done).model).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
-    expect(body.model).toBe("inclusionai/ling-3.0-flash-vl:free");
+    expect(body.model).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
     expect(body.messages.at(-1)).toEqual({
       role: "user",
       content: [
@@ -402,7 +402,7 @@ describe("OpenRouterProvider", () => {
 
     const firstBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
     const secondBody = JSON.parse(fetchSpy.mock.calls[1][1]?.body as string);
-    expect(firstBody.model).toBe("deepseek/deepseek-v4-flash-0731:free");
+    expect(firstBody.model).toBe("nvidia/nemotron-3.5-lightning:free");
     expect(secondBody.model).toBe("inclusionai/ling-3.0-flash:free");
     // El primer intento falla en silencio y se reintenta; solo un fallo final se registra/avisa.
     expect(error).not.toHaveBeenCalled();

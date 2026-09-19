@@ -6,6 +6,8 @@ import { ANON_COOKIE } from "@/lib/contracts/chat";
 import { chatErrorResponse } from "@/lib/http/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRepo } from "@/lib/db";
+import { getEffectiveEnv } from "@/lib/config/effective";
+import { getEffectiveFlags } from "@/lib/config/flags";
 
 export const runtime = "nodejs";
 
@@ -47,19 +49,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Enforce voice restrictions: if user is authenticated and disallows voice,
-    // return 204 (same as no API key), so client fallback handling applies.
-    if (userId) {
-      try {
-        const repo = getRepo();
-        const security = await repo.getUserSecurity(userId);
-        if (security && !security.allowVoice) {
-          return new NextResponse(null, { status: 204 });
-        }
-      } catch (error) {
-        // Log error but proceed gracefully (permissive default)
-        console.error("[transcribe] Failed to check user security flags:", error);
-      }
+    // Modo voz (feature flag `voice_mode`, global Y de la cuenta): apagado responde 204, igual que
+    // sin clave del proveedor, y el cliente cae a su alternativa. `getEffectiveFlags` nunca lanza.
+    const flags = await getEffectiveFlags(userId);
+    if (!flags.voice_mode) {
+      return new NextResponse(null, { status: 204 });
     }
 
     // Get or use existing anonymous cookie for rate limiting
@@ -77,7 +71,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await transcribeAudio(parsed.data);
+    const result = await transcribeAudio(parsed.data, await getEffectiveEnv());
 
     if (result === null) {
       return new NextResponse(null, { status: 204 });

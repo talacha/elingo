@@ -19,15 +19,17 @@ export const envSchema = z.object({
   ANTHROPIC_EFFORT: z.enum(["low", "medium", "high"]).default("low"),
   ANTHROPIC_FALLBACK_MODEL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
-  // Antes "anthropic/claude-fable-5.1": enrutaba a Fable vía OpenRouter, duplicando el coste de
-  // Anthropic sin motivo. DeepSeek V4 Flash 0731 es gratis en OpenRouter (tasks.md 6.6/M6).
-  OPENROUTER_MODEL: z.string().default("deepseek/deepseek-v4-flash-0731:free"),
-  /** T-051: modelo con visión; se usa en vez de OPENROUTER_MODEL cuando el turno trae imágenes. */
-  OPENROUTER_VISION_MODEL: z.string().default("inclusionai/ling-3.0-flash-vl:free"),
+  // Los tres modelos de OpenRouter son `base_model`, `visual_model` y `speech_model` en
+  // lib/config/registry.ts (editables en caliente desde /admin). Los tres por defecto son gratis:
+  // el modelo base es solo de texto; el omni acepta imagen y audio (comprobado en el catálogo de
+  // OpenRouter: nemotron-3.5-lightning NO acepta imágenes ni audio, así que no vale para los otros dos).
+  OPENROUTER_MODEL: z.string().default("nvidia/nemotron-3.5-lightning:free"),
+  /** T-051: modelo con visión (`visual_model`); se usa en vez de OPENROUTER_MODEL cuando el turno trae imágenes. */
+  OPENROUTER_VISION_MODEL: z.string().default("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
   /** T-051: si la petición al modelo principal falla, se reintenta una vez con este modelo. */
   OPENROUTER_FALLBACK_MODEL: z.string().optional(),
-  /** T-052: modelo de transcripción, vía el endpoint dedicado /audio/transcriptions. */
-  OPENROUTER_TRANSCRIBE_MODEL: z.string().default("openai/whisper-large-v3-turbo"),
+  /** T-052: modelo de voz (`speech_model`): entiende el audio de la alumna vía /chat/completions + input_audio. */
+  OPENROUTER_TRANSCRIBE_MODEL: z.string().default("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
   /** T-053: sin clave, /api/speech responde 204 y el cliente cae a speechSynthesis del navegador. */
   FISH_AUDIO_API_KEY: z.string().optional(),
   FISH_AUDIO_MODEL: z.string().default("s2.1-pro-free"),

@@ -64,7 +64,18 @@ export type RepoKind = "neon" | "memory";
 /** Máximo de conversaciones que devuelve listSessions (las más recientes). */
 export const MAX_SESSIONS = 50;
 
-/** M7: los tres interruptores que un padre/madre controla desde /parents (tasks.md 6.11). */
+/**
+ * Claves de `account_flags` detrás de `allowImages` / `allowVoice` (lib/config/registry.ts, FLAGS).
+ * Este nivel no importa lib/config (que depende de él), así que las repite aquí.
+ */
+export const ACCOUNT_FLAG_IMAGE = "image_mode";
+export const ACCOUNT_FLAG_VOICE = "voice_mode";
+
+/**
+ * M7: los tres interruptores que un padre/madre controla desde /parents (tasks.md 6.11).
+ * `allowImages`/`allowVoice` se guardan como feature flags por cuenta (`account_flags`); `allowText`
+ * sigue en `users`. Las columnas `users.allow_images/allow_voice` ya no se leen.
+ */
 export interface UserFlags {
   allowImages: boolean;
   allowVoice: boolean;
@@ -90,6 +101,8 @@ export interface AdminUserSummary {
   role: UserRole;
   createdAt: string;
   sessionCount: number;
+  /** Flags que esta cuenta ha apartado del valor global (ver `account_flags`). */
+  flagOverrides: Record<string, boolean>;
 }
 
 /** Fila cruda (sesión × mensaje) de la que se derivan los SubjectInsight; ver `aggregateSubjectInsights`. */
@@ -173,4 +186,10 @@ export interface Repo {
   getAiConfig(): Promise<Record<string, string>>;
   /** M7 admin: guarda un override; `updatedBy` es el email del admin, para auditoría. */
   setAiConfig(key: string, value: string, updatedBy: string): Promise<void>;
+  /** Quita un override (vuelve a la variable de entorno). No falla si no existía. */
+  deleteAiConfig(key: string): Promise<void>;
+  /** Flags de la cuenta que se apartan del global: `{ voice_mode: false }`. Ausente = sigue al global. */
+  getAccountFlags(userId: string): Promise<Record<string, boolean>>;
+  /** Fija (`true`/`false`) o quita (`null`) el flag de una cuenta; `updatedBy`: email o "parent". */
+  setAccountFlag(userId: string, flag: string, enabled: boolean | null, updatedBy: string): Promise<void>;
 }

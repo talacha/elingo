@@ -97,8 +97,8 @@ describe("contrato POST /api/chat", () => {
 describe("T-051: modelForRequest / inputHasImage", () => {
   const provider: TutorProvider = {
     name: "openrouter",
-    model: "deepseek/deepseek-v4-flash-0731:free",
-    visionModel: "inclusionai/ling-3.0-flash-vl:free",
+    model: "nvidia/nemotron-3.5-lightning:free",
+    visionModel: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     reply: async () => {
       throw new Error("no usado en este test");
     },
@@ -170,8 +170,8 @@ describe("env", () => {
     resetEnvCache();
     const env = getEnv();
     expect(env.ANTHROPIC_MODEL).toBe("claude-fable-5-1");
-    expect(env.OPENROUTER_MODEL).toBe("deepseek/deepseek-v4-flash-0731:free");
-    expect(env.OPENROUTER_VISION_MODEL).toBe("inclusionai/ling-3.0-flash-vl:free");
+    expect(env.OPENROUTER_MODEL).toBe("nvidia/nemotron-3.5-lightning:free");
+    expect(env.OPENROUTER_VISION_MODEL).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
     expect(env.FISH_AUDIO_API_KEY).toBeUndefined();
     expect(env.AI_WINDOW_PAIRS).toBe(6);
     expect(env.AUTH_REQUIRED).toBe(false);

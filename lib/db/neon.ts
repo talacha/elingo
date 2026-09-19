@@ -3,6 +3,8 @@ import type { ChatMessage, Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import { createDb, type Db } from "./client";
 import {
+  ACCOUNT_FLAG_IMAGE,
+  ACCOUNT_FLAG_VOICE,
   aggregateSubjectInsights,
   MAX_SESSIONS,
   type AdminUserSummary,
@@ -17,6 +19,7 @@ import {
   type UserSecurity,
 } from "./repo";
 import {
+  accountFlags,
   appConfig,
   chatSessions,
   messages,
@@ -146,16 +149,19 @@ export class NeonRepo implements Repo {
 
   async getUserSecurity(userId: string): Promise<UserSecurity | null> {
     const [row] = await this.db
-      .select({
-        safeWordHash: users.safeWordHash,
-        allowImages: users.allowImages,
-        allowVoice: users.allowVoice,
-        allowText: users.allowText,
-      })
+      .select({ safeWordHash: users.safeWordHash, allowText: users.allowText })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-    return row ?? null;
+    if (!row) return null;
+    // Imágenes y voz son feature flags por cuenta (`account_flags`); sin fila, siguen al global.
+    const flags = await this.getAccountFlags(userId);
+    return {
+      safeWordHash: row.safeWordHash,
+      allowText: row.allowText,
+      allowImages: flags[ACCOUNT_FLAG_IMAGE] ?? true,
+      allowVoice: flags[ACCOUNT_FLAG_VOICE] ?? true,
+    };
   }
 
   async setSafeWordHash(userId: string, hash: string): Promise<void> {
@@ -163,17 +169,22 @@ export class NeonRepo implements Repo {
   }
 
   async updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags> {
-    const [row] = await this.db
-      .update(users)
-      .set(patch)
-      .where(eq(users.id, userId))
-      .returning({
-        allowImages: users.allowImages,
-        allowVoice: users.allowVoice,
-        allowText: users.allowText,
-      });
-    if (!row) throw new Error(`users: el usuario ${userId} no existe`);
-    return row;
+    const security = await this.getUserSecurity(userId);
+    if (!security) throw new Error(`users: el usuario ${userId} no existe`);
+    if (patch.allowText !== undefined) {
+      await this.db.update(users).set({ allowText: patch.allowText }).where(eq(users.id, userId));
+    }
+    if (patch.allowImages !== undefined) {
+      await this.setAccountFlag(userId, ACCOUNT_FLAG_IMAGE, patch.allowImages, "parent");
+    }
+    if (patch.allowVoice !== undefined) {
+      await this.setAccountFlag(userId, ACCOUNT_FLAG_VOICE, patch.allowVoice, "parent");
+    }
+    return {
+      allowImages: patch.allowImages ?? security.allowImages,
+      allowVoice: patch.allowVoice ?? security.allowVoice,
+      allowText: patch.allowText ?? security.allowText,
+    };
   }
 
   async getSubjectInsights(userId: string): Promise<SubjectInsight[]> {
@@ -206,7 +217,16 @@ export class NeonRepo implements Repo {
       .leftJoin(chatSessions, eq(chatSessions.userId, users.id))
       .groupBy(users.id)
       .orderBy(desc(users.createdAt));
-    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+    const flagRows = await this.db.select().from(accountFlags);
+    const overridesByUser = new Map<string, Record<string, boolean>>();
+    for (const f of flagRows) {
+      overridesByUser.set(f.userId, { ...overridesByUser.get(f.userId), [f.flag]: f.enabled });
+    }
+    return rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      flagOverrides: overridesByUser.get(r.id) ?? {},
+    }));
   }
 
   async setUserRole(userId: string, role: UserRole): Promise<void> {
@@ -223,6 +243,39 @@ export class NeonRepo implements Repo {
       .insert(appConfig)
       .values({ key, value, updatedBy })
       .onConflictDoUpdate({ target: appConfig.key, set: { value, updatedBy, updatedAt: sql`now()` } });
+  }
+
+  async deleteAiConfig(key: string): Promise<void> {
+    await this.db.delete(appConfig).where(eq(appConfig.key, key));
+  }
+
+  async getAccountFlags(userId: string): Promise<Record<string, boolean>> {
+    const rows = await this.db
+      .select({ flag: accountFlags.flag, enabled: accountFlags.enabled })
+      .from(accountFlags)
+      .where(eq(accountFlags.userId, userId));
+    return Object.fromEntries(rows.map((r) => [r.flag, r.enabled]));
+  }
+
+  async setAccountFlag(
+    userId: string,
+    flag: string,
+    enabled: boolean | null,
+    updatedBy: string,
+  ): Promise<void> {
+    if (enabled === null) {
+      await this.db
+        .delete(accountFlags)
+        .where(and(eq(accountFlags.userId, userId), eq(accountFlags.flag, flag)));
+      return;
+    }
+    await this.db
+      .insert(accountFlags)
+      .values({ userId, flag, enabled, updatedBy })
+      .onConflictDoUpdate({
+        target: [accountFlags.userId, accountFlags.flag],
+        set: { enabled, updatedBy, updatedAt: sql`now()` },
+      });
   }
 }
 

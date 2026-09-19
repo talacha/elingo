@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parentSettingsSchema, PARENT_UNLOCK_COOKIE } from "@/lib/contracts/parents";
 import { verifyUnlockToken } from "@/lib/auth/parentUnlock";
+import { setAccountFlag } from "@/lib/config/flags";
 import { getRepo } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -108,7 +109,12 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const updated = await repo.updateUserFlags(userRecord.id, parsed.data);
+    // Imágenes y voz son feature flags por cuenta: se escriben por lib/config para invalidar su caché
+    // en Redis en el acto. `allowText` sigue en `users`.
+    const { allowImages, allowVoice, allowText } = parsed.data;
+    if (allowImages !== undefined) await setAccountFlag(userRecord.id, "image_mode", allowImages, "parent");
+    if (allowVoice !== undefined) await setAccountFlag(userRecord.id, "voice_mode", allowVoice, "parent");
+    const updated = await repo.updateUserFlags(userRecord.id, allowText === undefined ? {} : { allowText });
 
     return NextResponse.json(
       {

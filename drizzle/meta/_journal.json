@@ -22,6 +22,20 @@
       "when": 1789776276863,
       "tag": "0002_chunky_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789786910148,
+      "tag": "0003_account_flags",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789786910588,
+      "tag": "0004_config_keys_and_flags_data",
+      "breakpoints": true
     }
   ]
 }
