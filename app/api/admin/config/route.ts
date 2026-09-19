@@ -1,85 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminEmail } from "@/lib/auth/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAdminEmail } from "@/lib/auth/adminGuard";
 import { getRepo } from "@/lib/db";
-import { updateAiConfigSchema, type AdminAiConfigResponse } from "@/lib/contracts/admin";
+import { getEnv } from "@/lib/env";
+import { describeEffectiveAiConfig } from "@/lib/ai/config";
+import { resetAiConfigOverridesCache } from "@/lib/ai/providers";
+import { updateAiConfigSchema, type AdminAiConfigResponse, type AiConfigKey } from "@/lib/contracts/admin";
 
 export const runtime = "nodejs";
 
+const notFound = () => NextResponse.json({ error: "not_found" }, { status: 404 });
+
+async function buildResponse(): Promise<AdminAiConfigResponse> {
+  const overrides = (await getRepo().getAiConfig()) as Partial<Record<AiConfigKey, string>>;
+  return { overrides, effective: describeEffectiveAiConfig(getEnv(), overrides) };
+}
+
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "not_found" },
-        { status: 404 }
-      );
-    }
-
-    const { data } = await supabase.auth.getUser();
-    if (!data.user?.email || !isAdminEmail(data.user.email)) {
-      return NextResponse.json(
-        { error: "not_found" },
-        { status: 404 }
-      );
-    }
-
-    const repo = getRepo();
-    const overrides = await repo.getAiConfig();
-
-    const response: AdminAiConfigResponse = { overrides };
-    return NextResponse.json(response, { status: 200 });
+    if (!(await getAdminEmail())) return notFound();
+    return NextResponse.json(await buildResponse(), { status: 200 });
   } catch (error) {
     console.error("[admin/config] GET error:", error);
-    return NextResponse.json(
-      { error: "not_found" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
 
 export async function PUT(req: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "not_found" },
-        { status: 404 }
-      );
-    }
+    const email = await getAdminEmail();
+    if (!email) return notFound();
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user?.email || !isAdminEmail(data.user.email)) {
-      return NextResponse.json(
-        { error: "not_found" },
-        { status: 404 }
-      );
-    }
-
-    const body = await req.json();
-    const parsed = updateAiConfigSchema.safeParse(body);
-
+    const parsed = updateAiConfigSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json(
         {
           error: "invalid_request",
-          message: "Parámetros inválidos",
+          message: parsed.error.issues[0]?.message ?? "Parámetros inválidos",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const repo = getRepo();
-    await repo.setAiConfig(parsed.data.key, parsed.data.value, data.user.email);
+    await getRepo().setAiConfig(parsed.data.key, parsed.data.value, email);
+    // Que el siguiente /api/chat de este proceso ya use el cambio, sin esperar al TTL de 30 s.
+    resetAiConfigOverridesCache();
 
-    const overrides = await repo.getAiConfig();
-    const response: AdminAiConfigResponse = { overrides };
-    return NextResponse.json(response, { status: 200 });
+    return NextResponse.json(await buildResponse(), { status: 200 });
   } catch (error) {
     console.error("[admin/config] PUT error:", error);
-    return NextResponse.json(
-      { error: "not_found" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getEnv, resolveProvider } from "@/lib/env";
-import { getProvider } from "@/lib/ai/providers";
+import { getEnv } from "@/lib/env";
+import { getProviderWithOverrides } from "@/lib/ai/providers";
 import { getRepo } from "@/lib/db";
 import { hasRedisCredentials } from "@/lib/ratelimit";
 
@@ -11,8 +11,9 @@ export async function GET() {
   try {
     const env = getEnv();
     const repo = getRepo();
-    const provider = resolveProvider(env);
-    const providerInstance = getProvider(env);
+    // Con overrides de /admin, el proveedor/modelo activos son los del chat, no los de las env vars.
+    const providerInstance = await getProviderWithOverrides(env);
+    const provider = providerInstance.name;
 
     // Read package.json version
     // eslint-disable-next-line @typescript-eslint/no-require-imports
