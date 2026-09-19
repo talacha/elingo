@@ -1,6 +1,8 @@
 # ELI — Tutor Nexo
 
-Tutor de estudio por IA para 6º de primaria que guía paso a paso **sin dar nunca la respuesta**. Next.js 16, Anthropic API (Claude Fable 5.1), Neon, Upstash y Supabase, desplegado en Vercel.
+Tutor de estudio por IA para **K-12** (de kínder a 12.º grado) que guía paso a paso **sin dar nunca la respuesta**, con tareas en español o en inglés y sin asignaturas fijas. Next.js 16, OpenRouter (modelos gratuitos por defecto; Anthropic y un mock como alternativas), Neon, Upstash y Supabase, desplegado en Vercel.
+
+Los modelos, los límites y las funciones de voz e imagen se configuran desde `/admin` (guardados en Postgres, con caché en Redis) sin volver a desplegar; los secretos siguen en variables de entorno. Las reglas de producto están en [north_star.md](north_star.md).
 
 ## Arrancar
 

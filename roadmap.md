@@ -21,7 +21,8 @@
 | M5 Extras | Valor añadido tras la demo | — | Bandeja de `tasks.md` (estado `new`) |
 | M6 Multimodal | Voz e imagen en el chat, arquitectura simple | PR único fusionado; `/chat` acepta voz e imagen con fallback local | T-050 … T-056 |
 | M7 Familias y administración | Panel de padres con palabra segura, flags por familia, panel de administración | PR único fusionado; `/parents` y `/admin` funcionan y `/chat` respeta los flags | T-060 … T-069 |
-| M8 Calidad y visibilidad | Bugfixes (micrófono), mostrar modelo activo en el chat, verificar admin y auth | PR único fusionado; micrófono funciona, modelo visible en chat, `/admin` operativo, signup/login validados | T-070 … T-074 |
+| M8 Calidad y visibilidad | Bugfixes (micrófono), mostrar modelo activo en el chat, verificar admin y auth | PR único fusionado; micrófono funciona, modelo visible en chat, `/admin` operativo, signup/login validados | T-070 … T-075 |
+| M9 Configuración, modelos y calidad | Configuración en Postgres con caché Redis, flags por cuenta, modelos gratuitos de chat/visión/voz con respaldo, K-12, sin asignaturas, tareas bilingües | Cambios de modelo y flags sin redeploy; el chat nunca muestra razonamiento y sobrevive a un modelo caído; pregunta hablada → respuesta con voz | T-076 … T-089 |
 
 ## M0 — Bootstrap (secuencial)
 
@@ -105,21 +106,23 @@ Historial para padres, selector de asignatura persistente, rachas, foto del prob
 
 **Nota de proceso**: a diferencia de M1-M5, este hito se ejecuta en **una sola rama y un solo PR** (`agent/M6-multimodal`) por instrucción directa del humano, con sub-agentes en modelos económicos escribiendo tramos disjuntos del código bajo supervisión, en vez del enjambre habitual de un agente/rama/PR por tarea.
 
+> **Actualizado en M9**: los modelos concretos de esta sección (DeepSeek, Ling, Whisper por defecto, Fish Audio directo) cambiaron; los vigentes están en `tasks.md` 6.13 y en `north_star.md`. «Escuchar» sigue siendo manual salvo cuando la petición fue hablada (T-079).
+
 **Riesgo principal**: los modelos gratuitos de OpenRouter (DeepSeek V4 Flash, Ling 3.0 Flash VL) y la ventana gratuita de Fish Audio pueden cambiar límites, precio o desaparecer sin aviso — OpenRouter lo advierte explícitamente para sus modelos `:free`. Mitigación: todo es configurable por variable de entorno con fallback local (`speechSynthesis`, `SpeechRecognition`, mock); la producción no depende de que ninguno de ellos siga gratis.
 
 ## M7 — Familias y administración (mixto)
 
-**Objetivo**: quien se registra puede fijar una "palabra segura" que protege `/parents` (informes de progreso por asignatura y los flags `allowImages`/`allowVoice`/`allowText` del chat); `/admin`, accesible solo a `ADMIN_EMAILS`, permite ver usuarios y cambiar el proveedor/modelo de IA en caliente sin redeploy.
+**Objetivo**: quien se registra puede fijar una "palabra segura" que protege `/parents` (informe de actividad y los flags `allowImages`/`allowVoice`/`allowText` del chat); `/admin`, accesible solo a `ADMIN_EMAILS`, permite ver usuarios y cambiar el proveedor/modelo de IA en caliente sin redeploy.
 
 **Decisión de producto** (aclarada con el humano antes de empezar): no hay cuentas de hijo/a separadas. Un único perfil por familia — quien se registra inicia sesión en cualquier dispositivo (tablet, móvil, portátil) y usa esa misma sesión para estudiar; la palabra segura es solo la puerta para entrar en `/parents` a ver informes y cambiar ajustes, no una segunda cuenta.
 
 | Carril | Tareas |
 |---|---|
 | DO | T-060 esquema: `users.safeWordHash`/`allowImages`/`allowVoice`/`allowText`, tabla `app_config` (config de IA en caliente) |
-| BE | T-061 palabra segura (hash/verifica, `crypto.scrypt`, sin dependencia nueva) + desbloqueo de sesión → T-062 ajustes (flags) → T-063 los flags se hacen cumplir en `/api/chat`, `/api/speech`, `/api/transcribe` → T-064 informes heurísticos por asignatura (sin llamadas nuevas a IA) → T-066 `ADMIN_EMAILS` + listar usuarios → T-067 config de IA en caliente (`app_config`, con fallback seguro a las env vars si falla) |
+| BE | T-061 palabra segura (hash/verifica, `crypto.scrypt`, sin dependencia nueva) + desbloqueo de sesión → T-062 ajustes (flags) → T-063 los flags se hacen cumplir en `/api/chat`, `/api/speech`, `/api/transcribe` → T-064 informes heurísticos (sin llamadas nuevas a IA; desde T-088, un único resumen de actividad, sin desglose por asignatura) → T-066 `ADMIN_EMAILS` + listar usuarios → T-067 config de IA en caliente (`app_config`, con fallback seguro a las env vars si falla) |
 | FE | T-065 página `/parents` (puerta + ajustes + informes) → T-068 página `/admin` (usuarios + selector de proveedor/modelo) → T-069 `/chat` oculta micrófono/cámara según los flags |
 
-**Criterio de salida**: con `SUPABASE_*` configurado, alguien se registra, fija su palabra segura, entra en `/parents`, ve un resumen por asignatura y apaga "permitir imágenes"; `/chat` deja de mostrar el botón de cámara para esa cuenta; una cuenta en `ADMIN_EMAILS` entra en `/admin` y cambia el modelo activo sin tocar Vercel. Todo sigue funcionando sin ninguna clave nueva (sin Supabase, `/parents` y `/admin` no son alcanzables y el chat anónimo sigue igual que hoy).
+**Criterio de salida**: con `SUPABASE_*` configurado, alguien se registra, fija su palabra segura, entra en `/parents`, ve un resumen de actividad y apaga "permitir imágenes"; `/chat` deja de mostrar el botón de cámara para esa cuenta; una cuenta en `ADMIN_EMAILS` entra en `/admin` y cambia el modelo activo sin tocar Vercel. Todo sigue funcionando sin ninguna clave nueva (sin Supabase, `/parents` y `/admin` no son alcanzables y el chat anónimo sigue igual que hoy).
 
 **Riesgos**: primera migración de esquema desde T-020; se genera y versiona con `drizzle-kit generate` pero aplicarla a Neon de producción (`pnpm db:migrate` con el `DATABASE_URL` real) es un paso humano, no se ejecuta aquí. El "config de IA en caliente" de T-067 nunca sustituye la restricción de `tasks.md` §4 sobre cambiar el modelo de producción fuera de T-045: es human-in-the-loop por diseño (un admin autenticado decide, no un agente).
 
@@ -136,6 +139,24 @@ Historial para padres, selector de asignatura persistente, rachas, foto del prob
 **Criterio de salida**: un PR único fusionado con todos los bugfixes; micrófono funciona sin quedarse visualmente en "escuchando"; el modelo actual se muestra en el chat (en la burbuja del sistema inicial o en un header); `/admin` permite cambiar el modelo y se aplica en caliente; signup/login/parents/chat funcionan en secuencia sin errores.
 
 **Riesgos**: mínimos. Son refinamientos sobre código ya testeado en M7. La única novedad es la visibilidad del modelo, que es display-only.
+
+## M9 — Configuración, modelos y calidad (mixto)
+
+**Objetivo**: que lo ajustable se cambie sin redeploy, que ELI sea fiable con modelos gratuitos que se caen o se cuelgan, y que el producto siga las reglas del propietario (`north_star.md`, «Reglas de producto»): K-12, sin asignaturas, tareas en español o inglés, solo la respuesta final, voz que contesta con voz.
+
+| Carril | Tareas |
+|---|---|
+| DO | T-077 configuración en Postgres (`app_config`, `account_flags`) con caché Redis y feature flags por cuenta; T-084 `setSafeWordHash` en Neon (hallado al ejecutar la batería contra una base real) |
+| BE | T-076 `/admin` muestra el proveedor y el modelo efectivos → T-078 modelos de visión, STT y TTS por OpenRouter con respaldo → T-080 solo la respuesta final (filtro de razonamiento, respaldo y tiempo de espera) → T-081 nivel K-12 en el prompt · T-085 respaldo visual · T-086 una respuesta vacía cuenta como fallo · T-088 sin asignaturas y tareas bilingües |
+| FE | T-079 voz automática cuando la petición fue hablada · T-083 `/admin` en tres secciones · T-087 frases amables que rotan en «ELI está pensando…» |
+| Docs | T-089 `north_star.md`, roadmap, `tasks.md`, README y `CLAUDE.md` alineados con estas decisiones |
+
+**Criterio de salida**: en `main`, un administrador cambia un modelo o apaga voz/imagen desde `/admin` y el siguiente chat ya lo usa; con un modelo gratuito caído (429, 503, cuelgue, respuesta vacía o razonamiento filtrado) la niña recibe la respuesta de un modelo de respaldo o un aviso amable, nunca razonamiento ni un cuerpo vacío; tras una pregunta hablada, la respuesta se lee sola; no queda ninguna asignatura en la UI ni en la API; `pnpm check` verde.
+
+**Riesgos**:
+- Los modelos `:free` de OpenRouter comparten cuota con todos sus usuarios (429) y a veces se degradan (latencia de decenas de segundos, 503, respuestas vacías): por eso cada modelo tiene respaldo, un tiempo máximo hasta el primer texto (20 s) y una clave propia de Google se puede conectar en OpenRouter. Los modelos por defecto se eligen midiendo latencia y disponibilidad, no por el nombre.
+- **Deriva de esquema**: producción llegó a tener un historial de migraciones distinto del repo y `/api/chat` falló para toda cuenta con sesión. El CI no tiene base de datos, así que la batería del repositorio contra Neon no corre allí (pendiente: rama efímera de Neon en el CI). Una migración de producción se ensaya antes en una copia y se anota en el libro de Drizzle.
+- Sin verificar todavía con un modelo real: la calidad de las respuestas en inglés y la adaptación por grado.
 
 ## Grafo de dependencias
 
@@ -185,6 +206,19 @@ graph LR
   T067[T-067 config IA] --> T072[T-072 documentar config]
   T031 --> T073[T-073 flujo e2e signup]
   T065[T-065 /parents] --> T073
+  T072[T-072 documentar config] --> T076[T-076 /admin efectivo]
+  T067 --> T077[T-077 config Postgres + Redis + flags]
+  T077 --> T078[T-078 modelos visión, STT, TTS]
+  T077 --> T080[T-080 solo la respuesta final]
+  T056 --> T079[T-079 voz automática]
+  T080 --> T081[T-081 nivel K-12]
+  T080 --> T085[T-085 respaldo visual]
+  T080 --> T086[T-086 respuesta vacía]
+  T068[T-068 /admin UI] --> T083[T-083 /admin en tres secciones]
+  T077 --> T084[T-084 Neon setSafeWordHash]
+  T014 --> T087[T-087 frases de espera]
+  T081 --> T088[T-088 sin asignaturas]
+  T088 --> T089[T-089 docs alineados]
 ```
 
 ## Cómo ejecutar el enjambre
@@ -226,6 +260,8 @@ Repite con `frontend` y `data-ops` en `../elingo-fe` y `../elingo-do`. Para rond
 | Riesgo | Mitigación |
 |---|---|
 | Latencia y coste de Fable 5.1 (razonamiento siempre activo, $10/$50 por millón de tokens) | `effort: low`, salidas cortas, ventana de 6 pares, presupuesto diario, mock en dev y CI |
+| Los modelos gratuitos se degradan, se cuelgan o muestran su razonamiento | Respaldo por modelo (texto y foto por separado), tiempo máximo de 20 s hasta el primer texto, filtro de razonamiento, respuesta vacía = intento fallido; ver M9 |
+| El esquema de producción se desalinea del repo (el CI no tiene base de datos) | Ensayar la migración en una copia de Neon, rama de respaldo, transacción atómica y anotar en el libro de Drizzle; ver M9 |
 | El prompt de sistema es corto (~200 tokens) y no llega al mínimo cacheable | `cache_control` se deja puesto y se verifica con `usage.cache_read_input_tokens`; añadir ejemplos few-shot si compensa |
 | Dos agentes editan `tasks.md` a la vez | Cada agente toca solo su fila; `.gitattributes` con `tasks.md merge=union`; rebase antes del PR |
 | Auto-merge requiere reglas en `main` | T-002 crea el ruleset antes de abrir su PR; hasta entonces se usa `gh pr merge --squash` directo |
