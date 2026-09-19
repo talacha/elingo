@@ -305,7 +305,7 @@ describe("AnthropicProvider", () => {
     });
     expect(system[1]).toEqual({
       type: "text",
-      text: "La alumna ha elegido la asignatura: Ciencias.",
+      text: "La pregunta de la alumna parece ser de la asignatura: Ciencias.",
     });
     expect(buildSystem(undefined)).toHaveLength(1);
   });

@@ -189,19 +189,15 @@ describe("createTutorChat: envío y streaming", () => {
     expect(lastContent(chat.getState())).toBe(text);
   });
 
-  it("manda la asignatura cuando está fijada", async () => {
+  it("no manda asignatura: la deduce el servidor del mensaje", async () => {
     const fetch = fakeFetch(() => textStream(["Ok"]));
-    const chat = make(fetch, { subject: "mates" });
+    const chat = make(fetch);
 
     await chat.send("Hola");
-    chat.setSubject("lengua");
     await chat.send("Sigo");
-    chat.setSubject(undefined);
     await chat.send("Y ahora");
 
-    expect(bodyOf(call(fetch, 0)).subject).toBe("mates");
-    expect(bodyOf(call(fetch, 1)).subject).toBe("lengua");
-    expect(bodyOf(call(fetch, 2)).subject).toBeUndefined();
+    for (const i of [0, 1, 2]) expect(bodyOf(call(fetch, i)).subject).toBeUndefined();
     expect(bodyOf(call(fetch, 2)).messages.map((m) => m.role)).toEqual([
       "user",
       "assistant",

@@ -505,6 +505,21 @@ export interface TutorReplyInput { …; grade?: Grade }
 - **Cómo llega al prompt**: `POST /api/chat` lee el grado del perfil de la alumna con sesión (`upsertUserFromSupabase(...).grade`) y lo pasa en `TutorReplyInput.grade`; los tres proveedores llaman a `buildSystemPrompt(grade)`. Sin sesión, o con un valor irreconocible, se usa el grado por defecto (6.º): el prompt de siempre. Ver también `north_star.md` (la sustitución de la frase del nivel es una decisión registrada allí).
 - **Limitación**: una alumna anónima no puede elegir grado (no hay perfil). Si hiciera falta, habría que enviarlo en la petición de chat.
 
+### 6.16 Asignatura deducida del mensaje (T-082)
+
+La alumna **ya no elige la asignatura**: no hay selector, ni ejemplos etiquetados por asignatura, ni `subject` en la petición del cliente. La deduce el servidor de lo que escribe.
+
+```ts
+// lib/ai/subjects.ts
+export declare function inferSubjectFromText(text: string): Subject | null;   // null = sin señal clara o empate
+export declare function inferSubject(messages: { role: string; content: string }[]): Subject | null;
+```
+
+- `inferSubject` mira los mensajes de la alumna de más reciente a más antiguo y devuelve la asignatura del primero con señal clara: una continuación sin pistas («no lo entiendo») conserva el tema y un cambio de tema lo actualiza. Lo que dice ELI no cuenta.
+- La señal es determinista (patrones sobre el texto sin tildes ni mayúsculas): sin coste ni latencia, y comprobable. **Límites conocidos**: cubre las tres asignaturas de siempre (`mates`, `lengua`, `ciencias`); otras (historia, inglés…) no se reconocen y quedan en `null`; un empate también. Si hace falta más, lo natural es clasificar con el modelo en `after()`.
+- `POST /api/chat` calcula `subject = inferSubject(messages) ?? body.subject`: el campo `subject` del contrato de chat (6.1) se mantiene **solo** por compatibilidad con clientes antiguos y se usa como último recurso. El resultado va a `TutorReplyInput.subject` (pista de sistema `subjectHint`: «La pregunta de la alumna parece ser de la asignatura: …») y a la cola de persistencia, así que `chat_sessions.subject` y los informes de `/parents` (6.11) siguen funcionando sin cambios de esquema.
+- Sin señal, no se le dice ninguna asignatura al modelo.
+
 ## 7. Tabla de estado
 
 Solo se editan las columnas **Estado** y **Resultado** de tu fila. **Desbloquea** = número de tareas que dependen de esta directa o transitivamente (orientativo).

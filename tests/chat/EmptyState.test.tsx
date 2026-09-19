@@ -2,47 +2,31 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { EmptyState } from "@/components/chat/EmptyState";
 
+const render = (disabled = false) =>
+  renderToStaticMarkup(<EmptyState onSelectPrompt={vi.fn()} disabled={disabled} />);
+
 describe("EmptyState", () => {
   it("muestra bienvenida", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={false} />,
-    );
+    const html = render();
     expect(html).toContain("¡Hola! Soy ELI");
     expect(html).toContain("Cuéntame qué no entiendes");
   });
 
-  it("muestra ejemplos para cada asignatura", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={false} />,
-    );
-    // Mates
-    expect(html).toContain("Ejemplos de Mates");
+  it("ofrece ejemplos para empezar de varias áreas, sin etiquetarlos por asignatura", () => {
+    const html = render();
     expect(html).toContain("3/4 + 1/2");
-    // Lengua
-    expect(html).toContain("Ejemplos de Lengua");
     expect(html).toContain("verbos regulares");
-    // Ciencias
-    expect(html).toContain("Ejemplos de Ciencias");
     expect(html).toContain("ciclo del agua");
+    // La asignatura no se elige: se deduce del mensaje.
+    expect(html).not.toMatch(/Ejemplos de (Mates|Lengua|Ciencias)/);
+    expect(html).not.toContain("Asignatura");
   });
 
-  it("tiene tres ejemplos por asignatura", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={false} />,
-    );
-    // 3 asignaturas × 3 ejemplos = 9 botones
-    const buttonCount = (html.match(/<button/g) || []).length;
-    expect(buttonCount).toBe(9);
+  it("tiene seis ejemplos, todos como botones", () => {
+    expect((render().match(/<button/g) || []).length).toBe(6);
   });
 
   it("respeta disabled", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={true} />,
-    );
-    expect(html).toMatch(/disabled/);
+    expect(render(true)).toMatch(/disabled/);
   });
 });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
-import type { Subject, ImageMimeType } from "@/lib/contracts/chat";
+import type { ImageMimeType } from "@/lib/contracts/chat";
 import type { ChatCapabilities } from "@/app/api/chat/capabilities/route";
 import { useSpeechInput } from "./useSpeechInput";
 import { stopAllSpeech } from "./useSpeechOutput";
@@ -12,12 +12,6 @@ import { compressImageFile } from "./imageCompress";
 /** Límite de entrada del servidor (`AI_MAX_INPUT_CHARS`, tasks.md 6.6). */
 export const MAX_INPUT_CHARS = 1000;
 export const INPUT_PLACEHOLDER = "Tengo este problema: … me trabé en …";
-
-const SUBJECT_PLACEHOLDERS: Record<Subject, string> = {
-  mates: "Tengo este problema de mates: … me trabé en …",
-  lengua: "Tengo esta duda de lengua: … no sé bien…",
-  ciencias: "Tengo esta pregunta de ciencias: … no entiendo bien…",
-};
 
 interface ChatInputProps {
   /** ELI está respondiendo: se ofrece «Parar» en vez de «Enviar». */
@@ -29,8 +23,6 @@ interface ChatInputProps {
     options?: { spoken: boolean },
   ) => void;
   onStop: () => void;
-  /** Asignatura seleccionada, para personalizar el placeholder. */
-  subject?: Subject;
   /** User capabilities (images, voice, text) from parent. Optional, defaults to all-true. */
   capabilities?: ChatCapabilities;
 }
@@ -103,7 +95,6 @@ export function ChatInput({
   streaming,
   onSend,
   onStop,
-  subject,
   capabilities = { allowImages: true, allowVoice: true, allowText: true },
 }: ChatInputProps) {
   const [value, setValue] = useState("");
@@ -112,7 +103,7 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canSend = value.trim().length > 0 && !streaming;
-  const placeholder = subject ? SUBJECT_PLACEHOLDERS[subject] : INPUT_PLACEHOLDER;
+  const placeholder = INPUT_PLACEHOLDER;
 
   // La pregunta cuenta como hablada si el texto vino del micrófono; se olvida al enviar o al vaciar
   // el cuadro, así que escribir una pregunta nueva desde cero vuelve a ser una pregunta escrita.

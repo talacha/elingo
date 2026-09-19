@@ -3,6 +3,7 @@ import { chatRequestSchema, ANON_COOKIE, CHAT_HEADERS } from "@/lib/contracts/ch
 import { checkRateLimit } from "@/lib/ratelimit";
 import { checkBudget, incrementBudget } from "@/lib/ai/budget";
 import { streamTutorReply } from "@/lib/ai/service";
+import { inferSubject } from "@/lib/ai/subjects";
 import { enqueuePersist } from "@/lib/queue";
 import { getEnv } from "@/lib/env";
 import { parseGrade, type Grade } from "@/lib/contracts/grade";
@@ -41,7 +42,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { sessionId, subject, messages } = parsed.data;
+    const { sessionId, subject: legacySubject, messages } = parsed.data;
+    // La asignatura ya no la elige la alumna: se deduce de lo que escribe. Un cliente antiguo que aún
+    // la envíe solo sirve de último recurso cuando el texto no deja clara ninguna.
+    const subject = inferSubject(messages) ?? legacySubject;
     const env = getEnv();
     // Config efectiva: env vars + lo guardado en Postgres desde /admin (vía Redis).
     const effectiveEnv = await getEffectiveEnv(env);

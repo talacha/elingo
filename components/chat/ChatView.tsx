@@ -6,7 +6,6 @@ import type { ChatCapabilities } from "@/app/api/chat/capabilities/route";
 import { Button } from "@/components/ui/Button";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
-import { SubjectChips } from "./SubjectChips";
 import { EmptyState } from "./EmptyState";
 import { SessionList } from "./SessionList";
 import { useTutorChat, type TutorChatError } from "./useTutorChat";
@@ -54,7 +53,7 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
   // Load initial session messages if provided
   useEffect(() => {
     if (initialSession && loadedSessionIdRef.current !== initialSession.session.id) {
-      chat.loadMessages(initialSession.messages, initialSession.session.subject ?? undefined);
+      chat.loadMessages(initialSession.messages);
       loadedSessionIdRef.current = initialSession.session.id;
     }
   }, [initialSession, chat]);
@@ -116,10 +115,7 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
           intro={
             chat.messages.length === 0 ? (
               <EmptyState
-                onSelectPrompt={(prompt, subject) => {
-                  chat.setSubject(subject);
-                  void chat.send(prompt);
-                }}
+                onSelectPrompt={(prompt) => void chat.send(prompt)}
                 disabled={streaming}
               />
             ) : null
@@ -171,23 +167,10 @@ export function ChatView({ initialSession }: ChatViewProps = {}) {
             )
           )}
 
-          {/* Selector de asignatura */}
-          {chat.messages.length > 0 && (
-            <div className="px-1">
-              <p className="m-0 mb-2 text-sm font-semibold text-ink-soft">Asignatura:</p>
-              <SubjectChips
-                active={chat.subject}
-                onChange={chat.setSubject}
-                disabled={streaming}
-              />
-            </div>
-          )}
-
           <ChatInput
             streaming={streaming}
             onSend={(text, image, options) => void chat.send(text, image, options)}
             onStop={chat.stop}
-            subject={chat.subject}
             capabilities={capabilities}
           />
           {chat.meta?.provider === "mock" && (
