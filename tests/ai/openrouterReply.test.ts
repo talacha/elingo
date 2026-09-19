@@ -240,3 +240,54 @@ describe("OpenRouterProvider: un modelo colgado no agota los 60 s de la función
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("OpenRouterProvider: un 200 sin texto no es una respuesta", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let error: ReturnType<typeof vi.spyOn>;
+  const modelsCalled = () =>
+    fetchSpy.mock.calls.map((call: unknown[]) => JSON.parse((call[1] as RequestInit).body as string).model);
+  // Termina bien (finish_reason stop) pero sin un solo carácter de contenido.
+  const emptyStream = () =>
+    new Response('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\ndata: [DONE]\n', { status: 200 });
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) delete process.env[key];
+    process.env.OPENROUTER_API_KEY = "test-key";
+    resetEnvCache();
+    error = vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchSpy = vi.spyOn(global, "fetch");
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) delete process.env[key];
+    resetEnvCache();
+    fetchSpy.mockRestore();
+    error.mockRestore();
+  });
+
+  it("si el modelo termina sin texto, se responde con el modelo de respaldo", async () => {
+    fetchSpy.mockImplementationOnce(async () => emptyStream()).mockImplementationOnce(async () => sse(GOOD_ANSWER));
+
+    const { stream, done } = await new OpenRouterProvider({ env: getEnv() }).reply(input);
+    expect(await readAll(stream)).toBe(GOOD_ANSWER);
+    expect((await done).model).toBe(FALLBACK);
+    expect(modelsCalled()).toEqual([PRIMARY, FALLBACK]);
+  });
+
+  it("si el respaldo también termina sin texto, la niña ve el aviso amable (nunca un cuerpo vacío)", async () => {
+    fetchSpy.mockImplementation(async () => emptyStream());
+
+    const { stream, done } = await new OpenRouterProvider({ env: getEnv() }).reply(input);
+    expect(await readAll(stream)).toBe(UPSTREAM_ERROR_MESSAGE);
+    expect((await done).stopReason).toBe("error");
+  });
+
+  it("un rechazo del modelo (content_filter) conserva su mensaje propio y no se trata como vacío", async () => {
+    fetchSpy.mockImplementation(
+      async () => new Response('data: {"choices":[{"delta":{},"finish_reason":"content_filter"}]}\ndata: [DONE]\n'),
+    );
+    const { done } = await new OpenRouterProvider({ env: getEnv() }).reply(input);
+    expect((await done).stopReason).toBe("refusal");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
