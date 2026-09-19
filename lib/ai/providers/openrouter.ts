@@ -1,10 +1,11 @@
-import { ELI_SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { ELI_SYSTEM_PROMPT, REPLY_STYLE_HINT } from "@/lib/ai/prompt";
 import {
   createTutorStream,
   ZERO_USAGE,
   type TutorOutcome,
   type TutorStreamHandle,
 } from "@/lib/ai/providers/stream";
+import { ReplyFilter } from "@/lib/ai/providers/replyFilter";
 import { subjectHint } from "@/lib/ai/subjects";
 import type {
   StopReason,
@@ -68,6 +69,7 @@ export class OpenRouterProvider implements TutorProvider {
   private readonly apiKey: string;
   private readonly appUrl: string;
   private readonly maxOutputTokens: number;
+  private readonly firstTokenTimeoutMs: number;
 
   constructor(options: OpenRouterProviderOptions = {}) {
     const env = options.env ?? getEnv();
@@ -77,6 +79,7 @@ export class OpenRouterProvider implements TutorProvider {
     this.apiKey = env.OPENROUTER_API_KEY || "";
     this.appUrl = env.NEXT_PUBLIC_APP_URL;
     this.maxOutputTokens = env.AI_MAX_OUTPUT_TOKENS;
+    this.firstTokenTimeoutMs = env.OPENROUTER_FIRST_TOKEN_TIMEOUT_MS;
   }
 
   async reply(input: TutorReplyInput): Promise<TutorReplyResult> {
@@ -108,6 +111,29 @@ export class OpenRouterProvider implements TutorProvider {
     input: TutorReplyInput,
     handle: TutorStreamHandle,
   ): Promise<TutorOutcome> {
+    // Un modelo gratuito saturado puede quedarse colgado sin contestar: si no llega texto visible a
+    // tiempo se aborta este intento (y, con modelo de respaldo, se reintenta) en vez de agotar los
+    // 60 s de la función y devolver un 504.
+    const attemptAbort = new AbortController();
+    const forwardAbort = () => attemptAbort.abort();
+    if (handle.signal.aborted) attemptAbort.abort();
+    else handle.signal.addEventListener("abort", forwardAbort, { once: true });
+    const stallTimer = setTimeout(() => {
+      console.error("[ai/openrouter] sin texto a tiempo, se aborta el intento", {
+        model,
+        afterMs: this.firstTokenTimeoutMs,
+      });
+      attemptAbort.abort();
+    }, this.firstTokenTimeoutMs);
+    const filter = new ReplyFilter();
+    /** Emite lo que el filtro deja pasar; el primer texto visible desactiva el temporizador. */
+    const emit = (delta: string) => {
+      const visible = filter.push(delta);
+      if (!visible) return;
+      clearTimeout(stallTimer);
+      handle.emit(visible);
+    };
+
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -123,8 +149,10 @@ export class OpenRouterProvider implements TutorProvider {
           stream: true,
           messages: buildMessages(input.subject, input.messages),
           usage: { include: true },
+          // Que el razonamiento de los modelos que lo separan no viaje en la respuesta.
+          reasoning: { exclude: true },
         }),
-        signal: handle.signal,
+        signal: attemptAbort.signal,
       });
 
       if (!response.ok) {
@@ -146,7 +174,7 @@ export class OpenRouterProvider implements TutorProvider {
 
       try {
         for (;;) {
-          if (handle.signal.aborted) break;
+          if (attemptAbort.signal.aborted) break;
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -162,7 +190,7 @@ export class OpenRouterProvider implements TutorProvider {
 
             try {
               const event = JSON.parse(data) as OpenRouterSSEEvent;
-              processSSEEvent(event, handle, (u) => {
+              processSSEEvent(event, emit, (u) => {
                 usage = u;
               });
 
@@ -178,13 +206,33 @@ export class OpenRouterProvider implements TutorProvider {
         reader.releaseLock();
       }
 
-      if (handle.signal.aborted) {
+      const tail = filter.finish();
+      if (tail) {
+        clearTimeout(stallTimer);
+        handle.emit(tail);
+      }
+
+      if (filter.leakedThinking) {
+        // La respuesta era el razonamiento del modelo: nunca se enseña; cuenta como intento fallido.
+        console.error("[ai/openrouter] la respuesta era razonamiento del modelo, se descarta", { model });
+        return {
+          usage,
+          model,
+          stopReason: "error",
+          error: new Error("la respuesta contenía el razonamiento del modelo"),
+        };
+      }
+      if (attemptAbort.signal.aborted) {
         stopReason = "error";
+        error ??= new Error("el modelo no respondió a tiempo");
       }
 
       return { usage, model, stopReason, error };
     } catch (error) {
       return { usage: { ...ZERO_USAGE }, model, stopReason: "error", error };
+    } finally {
+      clearTimeout(stallTimer);
+      handle.signal.removeEventListener("abort", forwardAbort);
     }
   }
 }
@@ -207,6 +255,8 @@ function buildMessages(subject: Subject | undefined, turns: readonly TutorTurn[]
       content: ELI_SYSTEM_PROMPT,
     },
   ];
+
+  messages.push({ role: "system", content: REPLY_STYLE_HINT });
 
   const hint = subjectHint(subject);
   if (hint) {
@@ -242,12 +292,12 @@ function toOpenRouterMessage(turn: TutorTurn): { role: "user" | "assistant"; con
  */
 function processSSEEvent(
   event: OpenRouterSSEEvent,
-  handle: TutorStreamHandle,
+  emit: (delta: string) => void,
   updateUsage: (usage: TutorUsage) => void,
 ): void {
   const delta = event.choices?.[0]?.delta?.content;
   if (delta) {
-    handle.emit(delta);
+    emit(delta);
   }
 
   if (event.usage) {

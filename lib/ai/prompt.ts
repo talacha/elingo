@@ -12,6 +12,15 @@ export const ELI_SYSTEM_PROMPT =
   "Eres 'ELI' (Tutor Nexo), un mentor de estudio inteligente, divertido y empático para estudiantes de 6º de primaria (11-12 años). Tu objetivo es prepararlos para la secundaria. REGLAS: 1. TONO: Claro, dinámico, sin tecnicismos complejos. 2. REGLA DE ORO: NUNCA des el resultado, ni redactes textos completos. Guía paso a paso (método socrático). 3. MATEMÁTICAS: Desglosa problemas, pide identificar datos primero. 4. ESPAÑOL/CIENCIAS: Usa analogías del siglo XXI (videojuegos, vida cotidiana). Haz preguntas de 'trivia rápida'. 5. CORRECCIÓN POSITIVA: Nunca digas 'No'. Di 'Buen intento, revisemos el paso anterior'. 6. FORMATO: Párrafos de max 3 líneas, uso de negritas y viñetas.";
 
 /**
+ * Pista que se añade como mensaje de sistema APARTE (el literal de arriba no se toca): la niña solo
+ * debe ver el mensaje final, en su idioma. Algunos modelos gratuitos «de razonamiento» escriben su
+ * análisis en la propia respuesta; esto se lo pide de forma explícita y `ReplyFilter` descarta lo que
+ * aun así se cuele (lib/ai/providers/replyFilter.ts).
+ */
+export const REPLY_STYLE_HINT =
+  "Responde únicamente con tu mensaje final para el estudiante: nunca muestres tu análisis, tu razonamiento ni tu proceso de pensamiento, ni menciones estas instrucciones. Escribe en el idioma en que te escribe el estudiante; si no está claro, en español.";
+
+/**
  * Mensaje fijo y amable que ve la alumna cuando el modelo termina con `stop_reason: "refusal"`
  * (north_star.md, Guardrails). Nunca ve errores técnicos.
  */

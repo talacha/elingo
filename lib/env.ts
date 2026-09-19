@@ -27,8 +27,17 @@ export const envSchema = z.object({
   OPENROUTER_MODEL: z.string().default("nvidia/nemotron-3.5-lightning:free"),
   /** T-051: modelo con visión (`visual_model`); se usa en vez de OPENROUTER_MODEL cuando el turno trae imágenes. Gratis. */
   OPENROUTER_VISION_MODEL: z.string().default("google/gemma-4-31b-it:free"),
-  /** T-051: si la petición al modelo principal falla, se reintenta una vez con este modelo. */
-  OPENROUTER_FALLBACK_MODEL: z.string().optional(),
+  /**
+   * `base_fallback_model`: si el modelo principal falla, no responde a tiempo o devuelve su razonamiento
+   * en vez de una respuesta, se reintenta UNA vez con este (solo en peticiones sin imagen). Por defecto
+   * el que fue el principal antes de T-077: gratis y con ~100 % de disponibilidad en OpenRouter.
+   */
+  OPENROUTER_FALLBACK_MODEL: z.string().default("deepseek/deepseek-v4-flash-0731:free"),
+  /**
+   * Si un intento no ha producido texto visible en este tiempo se aborta (y se reintenta con el modelo de
+   * respaldo). Debe quedar bien por debajo de `maxDuration` (60 s) de /api/chat: dos intentos caben.
+   */
+  OPENROUTER_FIRST_TOKEN_TIMEOUT_MS: positiveInt(20_000),
   /**
    * T-052: `stt_model`, transcripción de la voz de la alumna por `/audio/transcriptions` (acepta el
    * `webm` de MediaRecorder). No hay STT gratuito en OpenRouter; whisper-large-v3-turbo cuesta ~$0.012/hora de audio.
