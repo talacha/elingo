@@ -18,10 +18,16 @@ describe("registro de configuración", () => {
     }
   });
 
-  it("define los tres modelos: base (texto), visual (imagen) y de voz (audio)", () => {
+  it("define los modelos: base (texto), visual (imagen), STT (voz→texto) y TTS (texto→voz, con respaldo)", () => {
     expect(getParamDef("base_model")).toMatchObject({ envKey: "OPENROUTER_MODEL", capability: "text", editable: true });
     expect(getParamDef("visual_model")).toMatchObject({ envKey: "OPENROUTER_VISION_MODEL", capability: "image" });
-    expect(getParamDef("speech_model")).toMatchObject({ envKey: "OPENROUTER_TRANSCRIBE_MODEL", capability: "audio" });
+    expect(getParamDef("stt_model")).toMatchObject({ envKey: "OPENROUTER_TRANSCRIBE_MODEL", capability: "transcription" });
+    expect(getParamDef("tts_model")).toMatchObject({ envKey: "OPENROUTER_TTS_MODEL", capability: "speech" });
+    expect(getParamDef("tts_fallback_model")).toMatchObject({ envKey: "OPENROUTER_TTS_FALLBACK_MODEL", capability: "speech" });
+    expect(getParamDef("tts_voice")).toMatchObject({ envKey: "OPENROUTER_TTS_VOICE", kind: "string" });
+    expect(getParamDef("tts_fallback_voice")).toMatchObject({ envKey: "OPENROUTER_TTS_FALLBACK_VOICE" });
+    // `speech_model` se dividió en stt_model / tts_model: no debe quedar la clave ambigua.
+    expect(getParamDef("speech_model")).toBeUndefined();
   });
 
   it("nunca incluye secretos ni conexiones: esos se quedan en variables de entorno", () => {
@@ -46,10 +52,14 @@ describe("registro de configuración", () => {
     for (const flag of FLAGS) expect(flag.ui.length).toBeGreaterThan(0);
   });
 
-  it("los modelos por defecto son los gratuitos acordados y el visual/voz aceptan imagen/audio", () => {
+  it("los modelos por defecto son los acordados: base/visual/TTS gratuitos, STT barato y TTS de respaldo de pago", () => {
     expect(env.OPENROUTER_MODEL).toBe("nvidia/nemotron-3.5-lightning:free");
-    expect(env.OPENROUTER_VISION_MODEL).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
-    expect(env.OPENROUTER_TRANSCRIBE_MODEL).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
+    expect(env.OPENROUTER_VISION_MODEL).toBe("google/gemma-4-31b-it:free");
+    expect(env.OPENROUTER_TRANSCRIBE_MODEL).toBe("openai/whisper-large-v3-turbo");
+    expect(env.OPENROUTER_TTS_MODEL).toBe("fish-audio/s2.1-pro-free:free");
+    expect(env.OPENROUTER_TTS_FALLBACK_MODEL).toBe("hexgrad/kokoro-82m");
+    expect(env.OPENROUTER_TTS_FALLBACK_VOICE).toBe("ef_dora");
+    expect(env.OPENROUTER_TTS_VOICE).toBeUndefined();
   });
 
   it(".env.example documenta los modelos con los mismos valores por defecto", () => {
@@ -57,6 +67,9 @@ describe("registro de configuración", () => {
     expect(example).toContain(`OPENROUTER_MODEL=${env.OPENROUTER_MODEL}`);
     expect(example).toContain(`OPENROUTER_VISION_MODEL=${env.OPENROUTER_VISION_MODEL}`);
     expect(example).toContain(`OPENROUTER_TRANSCRIBE_MODEL=${env.OPENROUTER_TRANSCRIBE_MODEL}`);
+    expect(example).toContain(`OPENROUTER_TTS_MODEL=${env.OPENROUTER_TTS_MODEL}`);
+    expect(example).toContain(`OPENROUTER_TTS_FALLBACK_MODEL=${env.OPENROUTER_TTS_FALLBACK_MODEL}`);
+    expect(example).toContain(`OPENROUTER_TTS_FALLBACK_VOICE=${env.OPENROUTER_TTS_FALLBACK_VOICE}`);
   });
 });
 

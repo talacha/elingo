@@ -36,6 +36,13 @@
       "when": 1789786910588,
       "tag": "0004_config_keys_and_flags_data",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789788337946,
+      "tag": "0005_voice_config_keys",
+      "breakpoints": true
     }
   ]
 }

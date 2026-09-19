@@ -283,10 +283,13 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `ANTHROPIC_FALLBACK_MODEL` | vacío → sin fallbacks | T-011 |
 | `OPENROUTER_API_KEY` | vacío | T-019 |
 | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` = `base_model` (antes `deepseek/deepseek-v4-flash-0731:free`, y antes `anthropic/claude-fable-5.1`, que duplicaba coste sin motivo) | T-019, T-051, T-077 |
-| `OPENROUTER_VISION_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` = `visual_model` | T-051, T-077 |
+| `OPENROUTER_VISION_MODEL` | `google/gemma-4-31b-it:free` = `visual_model` (gratis; entiende imagen y vídeo, no genera) | T-051, T-077, T-078 |
 | `OPENROUTER_FALLBACK_MODEL` | vacío → sin reintento | T-051 |
-| `OPENROUTER_TRANSCRIBE_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` = `speech_model` | T-052, T-077 |
-| `FISH_AUDIO_API_KEY` | vacío → sin voz de Fish Audio (cae a `speechSynthesis` del navegador) | T-053 |
+| `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` = `stt_model` (de pago, ~$0,012/hora de audio; no hay STT gratuito) | T-052, T-078 |
+| `OPENROUTER_TTS_MODEL` | `fish-audio/s2.1-pro-free:free` = `tts_model` (gratis, sin garantías de disponibilidad) | T-053, T-078 |
+| `OPENROUTER_TTS_VOICE` | vacío → sin `voice` (solo vale si el proveedor tiene una por defecto) | T-078 |
+| `OPENROUTER_TTS_FALLBACK_MODEL` · `OPENROUTER_TTS_FALLBACK_VOICE` | `hexgrad/kokoro-82m` · `ef_dora` (de pago, ~$0,6–4 por millón de caracteres; vacío → sin respaldo) | T-078 |
+| `FISH_AUDIO_API_KEY` | heredado: solo se usa si NO hay `OPENROUTER_API_KEY` (con ella, OpenRouter sirve el TTS). Sin ninguna, cae a `speechSynthesis` del navegador | T-053 |
 | `FISH_AUDIO_MODEL` | `s2.1-pro-free` | T-053 |
 | `ADMIN_EMAILS` | vacío → `/admin` inaccesible para cualquiera | T-066 |
 | `AI_MAX_OUTPUT_TOKENS` | `1024` | T-011, T-017 |
@@ -341,7 +344,7 @@ export declare function transcribeAudio(input: { audio: string; mimeType: string
 ```
 
 - `POST /api/transcribe`: `200 { text }`; `204` (sin cuerpo) si no hay `OPENROUTER_API_KEY` o falla el proveedor — el cliente ya debería haber intentado `SpeechRecognition` del navegador antes de llegar aquí; `400 invalid_request`; `429 rate_limited` (misma cookie/ip que el chat, contador propio `transcribe:<clave>`).
-- Vía OpenRouter `POST https://openrouter.ai/api/v1/chat/completions` con una parte `input_audio` (`{ data, format }`) y el `speech_model` (`OPENROUTER_TRANSCRIBE_MODEL`, un modelo con entrada de audio); responde `choices[0].message.content`. Antes se usaba el endpoint dedicado `/audio/transcriptions` con Whisper. Salvedad: OpenRouter documenta wav/mp3 (y algunos más según el modelo); `MediaRecorder` de Chrome entrega `audio/webm`, que el modelo puede rechazar → se degrada a `204` como cualquier fallo (Chrome usa `SpeechRecognition` nativo antes que esta ruta).
+- Vía OpenRouter, endpoint dedicado `POST https://openrouter.ai/api/v1/audio/transcriptions` (no es `/chat/completions`) con `{ model: stt_model, input_audio: { data, format } }`; responde `{ text }`. Acepta `webm` (el formato que graba `MediaRecorder` de Chrome), wav, mp3, ogg, m4a, flac y aac. Se cobra por segundo de audio. **No** se usa `/chat/completions` con `input_audio`: solo documenta wav/mp3 y `webm` fallaría.
 - El modo voz es el flag `voice_mode` (6.13): apagado → `204`.
 - Entrada preferida del cliente (T-054): `SpeechRecognition` nativo (sin backend, sin coste, sin clave); solo si el navegador no lo soporta (Firefox, Safari/Chrome de iOS) se graba con `MediaRecorder` y se sube aquí.
 
@@ -355,8 +358,10 @@ export const speechRequestSchema = z.object({ text: z.string().min(1).max(MAX_SP
 export declare function synthesizeSpeech(text: string): Promise<{ audio: ReadableStream<Uint8Array>; contentType: string } | null>;
 ```
 
-- `POST /api/speech`: `200` con el audio en streaming (`Content-Type` del proveedor); `204` si no hay `FISH_AUDIO_API_KEY` o falla — el cliente cae a `window.speechSynthesis`; `400 invalid_request`; `429 rate_limited` (contador propio `speech:<clave>`).
-- Fish Audio (`POST https://api.fish.audio/v1/tts`, cabecera `Authorization: Bearer FISH_AUDIO_API_KEY`, modelo `FISH_AUDIO_MODEL`): solo se le envía el texto ya generado por ELI, nunca la voz ni el texto de la alumna (la política de Fish Audio conserva peticiones para mejorar el modelo).
+- `POST /api/speech`: `200` con el audio en streaming (`Content-Type` del proveedor); `204` si no hay ni `OPENROUTER_API_KEY` ni `FISH_AUDIO_API_KEY`, o si fallan todos los modelos — el cliente cae a `window.speechSynthesis`; `400 invalid_request`; `429 rate_limited` (contador propio `speech:<clave>`).
+- Con `OPENROUTER_API_KEY`: `POST https://openrouter.ai/api/v1/audio/speech` con `{ model, input, response_format: "mp3", voice? }` (se pide `mp3`: el formato por defecto es `pcm`, que el navegador no reproduce solo). Se prueba `tts_model` (`fish-audio/s2.1-pro-free:free`, gratis) y, si falla —incluida una respuesta JSON de error con estado 200—, `tts_fallback_model` (`hexgrad/kokoro-82m`, de pago, con `tts_fallback_voice`). Se cobra por carácter de entrada. Un solo `OPENROUTER_API_KEY` sirve entonces para chat, imagen, STT y TTS.
+- Sin `OPENROUTER_API_KEY` pero con `FISH_AUDIO_API_KEY` (heredado): `POST https://api.fish.audio/v1/tts` con `FISH_AUDIO_MODEL`.
+- En ambos casos solo se envía el texto ya generado por ELI, nunca la voz ni el texto de la alumna (la política de Fish Audio conserva peticiones para mejorar el modelo).
 - "Escuchar" es una acción explícita por burbuja (T-056), nunca automática: evita sonido inesperado en un dispositivo compartido y gasto innecesario de la API.
 
 ### 6.10 Esquema — familias (M7)
@@ -414,14 +419,21 @@ export const PARENT_UNLOCK_COOKIE = "eli_parent_unlock";
 |---|---|---|---|
 | `ai_provider` | `AI_PROVIDER` | auto (`anthropic` si hay clave, si no `openrouter`, si no `mock`) | sí (`anthropic` \| `openrouter` \| `mock`) |
 | `base_model` | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` (alternativa: `openrouter/free`) | sí, debe aceptar texto |
-| `visual_model` | `OPENROUTER_VISION_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | sí, debe aceptar imágenes |
-| `speech_model` | `OPENROUTER_TRANSCRIBE_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | sí, debe aceptar audio |
+| `visual_model` | `OPENROUTER_VISION_MODEL` | `google/gemma-4-31b-it:free` | sí, debe aceptar imágenes |
 | `anthropic_model` | `ANTHROPIC_MODEL` | `claude-fable-5-1` | sí |
-| `tts_model` | `FISH_AUDIO_MODEL` | `s2.1-pro-free` | sí |
+| `stt_model` | `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` | sí, debe estar en el catálogo STT |
+| `tts_model` · `tts_voice` | `OPENROUTER_TTS_MODEL` · `OPENROUTER_TTS_VOICE` | `fish-audio/s2.1-pro-free:free` · vacío | sí, debe estar en el catálogo TTS |
+| `tts_fallback_model` · `tts_fallback_voice` | `OPENROUTER_TTS_FALLBACK_MODEL` · `OPENROUTER_TTS_FALLBACK_VOICE` | `hexgrad/kokoro-82m` · `ef_dora` | sí, debe estar en el catálogo TTS |
 | `ai_max_output_tokens` · `ai_window_pairs` · `ai_max_input_chars` | `AI_MAX_OUTPUT_TOKENS` · `AI_WINDOW_PAIRS` · `AI_MAX_INPUT_CHARS` | `1024` · `6` · `1000` | sí (enteros con rango) |
 | `rate_limit_max` · `rate_limit_window` · `daily_token_budget` | `RATE_LIMIT_MAX` · `RATE_LIMIT_WINDOW` · `DAILY_TOKEN_BUDGET` | `20` · `10 m` · `2000000` | no: se fijan al arrancar (solo lectura) |
 
-**Por qué esos modelos.** El catálogo público de OpenRouter dice que `nvidia/nemotron-3.5-lightning:free` es **solo texto** → sirve de `base_model`, no de modelo visual ni de voz. `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` acepta texto, imagen, audio y vídeo (salida: texto) y es gratis → modelo visual y de voz. OpenRouter no tiene ningún modelo gratuito que **hable**: la síntesis (`tts_model`) sigue siendo Fish Audio con la voz del navegador (`speechSynthesis`) de respaldo.
+**Por qué esos modelos** (elegidos con el catálogo de OpenRouter delante; el listado por defecto `/models` **no** incluye los de voz, que solo salen con `?output_modalities=speech` / `transcription`):
+- `base_model` `nvidia/nemotron-3.5-lightning:free`: **solo texto**, gratis. No sirve de modelo visual ni de voz. Alternativa: `openrouter/free` (es un router: cada llamada puede ir a un modelo distinto).
+- `visual_model` `google/gemma-4-31b-it:free`: gratis, entiende imagen (no la genera) y también vídeo. Alternativas gratuitas con imagen+vídeo: `qwen/qwen3.8-27b:free`, `inclusionai/ling-3.0-flash-vl:free`. Todos los modelos gratuitos con visión son de razonamiento: con `AI_MAX_OUTPUT_TOKENS` bajo el razonamiento podría gastar el presupuesto y dejar la respuesta vacía — comprobar con fotos reales.
+- `stt_model` `openai/whisper-large-v3-turbo`: no hay STT gratuito. Acepta `webm`, 99+ idiomas, ~$0,012 por hora de audio (una pregunta de 10 s ≈ $0,00003). En navegadores con `SpeechRecognition` (Chrome/Edge) ni se llega a usar.
+- `tts_model` `fish-audio/s2.1-pro-free:free`: gratis, «para pruebas y bajo volumen» (sin garantías de latencia ni disponibilidad); el catálogo no confirma el español → probar. `deepgram/flux-tts:free` (también gratis) es solo inglés: descartado.
+- `tts_fallback_model` `hexgrad/kokoro-82m`: el catálogo lista el español explícitamente; precio según proveedor (~$0,62–4 por millón de caracteres: una respuesta de 500 caracteres cuesta ≤ $0,002). `ef_dora` es una voz española de Kokoro **sin verificar** contra OpenRouter: ajustable en `/admin`.
+- Vídeo: el modelo visual ya lo acepta, pero la app solo envía imágenes; añadirlo exige una parte `video_url` y resolver el tamaño (data URL base64 frente al límite de cuerpo de las funciones).
 
 **Precedencia** de un parámetro: fila de `app_config` (Postgres) > variable de entorno > valor por defecto de `lib/env.ts`.
 
@@ -446,7 +458,7 @@ export interface AdminUserSummary { id; displayName; role; createdAt; sessionCou
 ```
 
 - `GET /api/admin/config` → `AdminConfigResponse` (valores **efectivos**, no solo lo guardado: así `/admin` muestra el proveedor y el modelo activos aunque no haya ninguna fila).
-- `PUT /api/admin/config` `{ key, value }` guarda un parámetro; `DELETE /api/admin/config` `{ key }` lo quita (vuelve a la env var). Valida contra el registro (rango, proveedor conocido) y los modelos contra el catálogo de OpenRouter (`lib/config/modelCatalog.ts`, caché 1 h): rechaza con `400` un modelo que no existe o que no acepta la entrada que necesita; si el catálogo no responde, guarda igualmente.
+- `PUT /api/admin/config` `{ key, value }` guarda un parámetro; `DELETE /api/admin/config` `{ key }` lo quita (vuelve a la env var). Valida contra el registro (rango, proveedor conocido) y los modelos contra el catálogo de OpenRouter que les corresponde (`lib/config/modelCatalog.ts`, caché 1 h; chat, TTS y STT son listados distintos): rechaza con `400` un modelo que no existe en su catálogo o que no acepta la entrada que necesita (`text`/`image`); un modelo de chat no vale de STT/TTS ni al revés; si el catálogo no responde, guarda igualmente.
 - `PUT /api/admin/flags` `{ flag, enabled }`: flag global · `PUT /api/admin/users/flags` `{ userId, flag, enabled: boolean | null }`: flag de una cuenta (`null` = quitar el override) · `GET /api/admin/users` (lista, con `flagOverrides`) · `PUT /api/admin/users/role`.
 - Sin sesión de Supabase autenticada con un email en `ADMIN_EMAILS`, `404` (no revela que la ruta existe). Errores inesperados: `500 internal_error`.
 - Esto no es un agente cambiando el modelo de producción por su cuenta (prohibido en `tasks.md` §4 fuera de T-045): es la vía para que un humano autenticado lo haga sin pasar por Vercel. La responsabilidad de quién tiene acceso vive en `ADMIN_EMAILS`, que un agente nunca rellena con su propio criterio.

@@ -19,18 +19,33 @@ export const envSchema = z.object({
   ANTHROPIC_EFFORT: z.enum(["low", "medium", "high"]).default("low"),
   ANTHROPIC_FALLBACK_MODEL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
-  // Los tres modelos de OpenRouter son `base_model`, `visual_model` y `speech_model` en
-  // lib/config/registry.ts (editables en caliente desde /admin). Los tres por defecto son gratis:
-  // el modelo base es solo de texto; el omni acepta imagen y audio (comprobado en el catálogo de
-  // OpenRouter: nemotron-3.5-lightning NO acepta imágenes ni audio, así que no vale para los otros dos).
+  // Los modelos de OpenRouter son `base_model`, `visual_model`, `stt_model` y `tts_model` (+ voces y
+  // respaldo) en lib/config/registry.ts, editables en caliente desde /admin. Elegidos con el catálogo
+  // de OpenRouter delante: el modelo base es solo de texto (nemotron-3.5-lightning NO acepta imágenes
+  // ni audio); el visual acepta imagen y vídeo; STT y TTS son categorías propias del catálogo
+  // (`?output_modalities=transcription` / `speech`) con endpoints propios.
   OPENROUTER_MODEL: z.string().default("nvidia/nemotron-3.5-lightning:free"),
-  /** T-051: modelo con visión (`visual_model`); se usa en vez de OPENROUTER_MODEL cuando el turno trae imágenes. */
-  OPENROUTER_VISION_MODEL: z.string().default("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
+  /** T-051: modelo con visión (`visual_model`); se usa en vez de OPENROUTER_MODEL cuando el turno trae imágenes. Gratis. */
+  OPENROUTER_VISION_MODEL: z.string().default("google/gemma-4-31b-it:free"),
   /** T-051: si la petición al modelo principal falla, se reintenta una vez con este modelo. */
   OPENROUTER_FALLBACK_MODEL: z.string().optional(),
-  /** T-052: modelo de voz (`speech_model`): entiende el audio de la alumna vía /chat/completions + input_audio. */
-  OPENROUTER_TRANSCRIBE_MODEL: z.string().default("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
-  /** T-053: sin clave, /api/speech responde 204 y el cliente cae a speechSynthesis del navegador. */
+  /**
+   * T-052: `stt_model`, transcripción de la voz de la alumna por `/audio/transcriptions` (acepta el
+   * `webm` de MediaRecorder). No hay STT gratuito en OpenRouter; whisper-large-v3-turbo cuesta ~$0.012/hora de audio.
+   */
+  OPENROUTER_TRANSCRIBE_MODEL: z.string().default("openai/whisper-large-v3-turbo"),
+  /** T-053: `tts_model`, síntesis por `/audio/speech` de OpenRouter (gratis, sin garantías de disponibilidad). */
+  OPENROUTER_TTS_MODEL: z.string().default("fish-audio/s2.1-pro-free:free"),
+  /** `tts_voice`: vacío = sin `voice` (solo vale si el proveedor tiene una por defecto; si no, fija una desde /admin). */
+  OPENROUTER_TTS_VOICE: z.string().optional(),
+  /** `tts_fallback_model`: se prueba si el TTS principal falla (de pago, ~$0.6–4 por millón de caracteres). Vacío = sin respaldo. */
+  OPENROUTER_TTS_FALLBACK_MODEL: z.string().default("hexgrad/kokoro-82m"),
+  /** `tts_fallback_voice`: voz en español de Kokoro (ef_dora). Sin verificar contra OpenRouter: ajustable en /admin. */
+  OPENROUTER_TTS_FALLBACK_VOICE: z.string().default("ef_dora"),
+  /**
+   * T-053 (heredado): Fish Audio directo. Solo se usa si NO hay OPENROUTER_API_KEY; con ella, OpenRouter
+   * sirve el TTS y esta clave sobra. Sin ninguna, /api/speech responde 204 y el cliente cae a speechSynthesis.
+   */
   FISH_AUDIO_API_KEY: z.string().optional(),
   FISH_AUDIO_MODEL: z.string().default("s2.1-pro-free"),
   AI_MAX_OUTPUT_TOKENS: positiveInt(1024),

@@ -346,7 +346,7 @@ describe("OpenRouterProvider", () => {
 
   it("T-051: identifica el modelo de visión del entorno", () => {
     const provider = new OpenRouterProvider({ env: getEnv() });
-    expect(provider.visionModel).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
+    expect(provider.visionModel).toBe("google/gemma-4-31b-it:free");
   });
 
   it("T-051: con imagen en el último turno, usa OPENROUTER_VISION_MODEL y content multimodal", async () => {
@@ -370,10 +370,10 @@ describe("OpenRouterProvider", () => {
     const provider = new OpenRouterProvider();
     const { stream, done } = await provider.reply(withImage);
     expect(await readAll(stream)).toBe("Veo la foto");
-    expect((await done).model).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
+    expect((await done).model).toBe("google/gemma-4-31b-it:free");
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
-    expect(body.model).toBe("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free");
+    expect(body.model).toBe("google/gemma-4-31b-it:free");
     expect(body.messages.at(-1)).toEqual({
       role: "user",
       content: [
