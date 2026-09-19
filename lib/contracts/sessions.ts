@@ -1,10 +1,9 @@
-import type { ChatMessage, Subject } from "./chat";
+import type { ChatMessage } from "./chat";
 
 /** Contrato de GET /api/sessions y GET /api/sessions/:id. Fuente de verdad: tasks.md, sección 6.4. */
 export interface SessionSummary {
   id: string;
   title: string | null;
-  subject: Subject | null;
   updatedAt: string;
 }
 

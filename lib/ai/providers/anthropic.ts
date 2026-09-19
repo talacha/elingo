@@ -6,7 +6,6 @@ import {
   type TutorOutcome,
   type TutorStreamHandle,
 } from "@/lib/ai/providers/stream";
-import { subjectHint } from "@/lib/ai/subjects";
 import type {
   StopReason,
   TutorProvider,
@@ -15,7 +14,7 @@ import type {
   TutorTurn,
   TutorUsage,
 } from "@/lib/contracts/ai";
-import type { ImageMimeType, Subject } from "@/lib/contracts/chat";
+import type { ImageMimeType } from "@/lib/contracts/chat";
 import type { Grade } from "@/lib/contracts/grade";
 import { getEnv, type Env } from "@/lib/env";
 
@@ -132,7 +131,7 @@ export class AnthropicProvider implements TutorProvider {
     const base = {
       model: this.model,
       max_tokens: this.maxOutputTokens,
-      system: buildSystem(input.subject, input.grade),
+      system: buildSystem(input.grade),
       output_config: { effort: this.effort },
       // T-051: Claude ya es multimodal con el mismo modelo, sin `visionModel` en este proveedor;
       // un turno con imágenes manda el bloque `image` antes del texto (orden recomendado por Anthropic).
@@ -168,14 +167,12 @@ function toAnthropicMessage(
 
 /**
  * Bloques de sistema: primero el prompt literal con `cache_control` (prefijo estable) y, si hay
- * asignatura, un segundo bloque sin caché que no invalida el primero.
+ * (ya no hay bloque de asignatura: ELI la deduce de lo que escribe la alumna).
  */
-export function buildSystem(subject?: Subject, grade?: Grade): SystemBlock[] {
+export function buildSystem(grade?: Grade): SystemBlock[] {
   const blocks: SystemBlock[] = [
     { type: "text", text: buildSystemPrompt(grade), cache_control: { type: "ephemeral" } },
   ];
-  const hint = subjectHint(subject);
-  if (hint) blocks.push({ type: "text", text: hint });
   return blocks;
 }
 

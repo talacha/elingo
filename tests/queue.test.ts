@@ -31,7 +31,6 @@ describe("queue: persistJob", () => {
     const job: PersistJob = {
       sessionId: "session-1",
       anonId: "anon-1",
-      subject: "mates",
       messages: [
         {
           id: "msg-1",

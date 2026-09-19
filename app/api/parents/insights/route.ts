@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const subjects = await repo.getSubjectInsights(userId);
+    const activity = await repo.getActivityInsight(userId);
 
     const response: ParentInsightsResponse = {
       hasSafeWord: security.safeWordHash !== null,
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         allowVoice: security.allowVoice,
         allowText: security.allowText,
       },
-      subjects,
+      activity,
     };
 
     return NextResponse.json(response, { status: 200 });

@@ -1,5 +1,4 @@
 import { asksForTheAnswer } from "@/lib/ai/providers/mock";
-import type { Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import type { MessageRole, UserRole } from "./schema";
 
@@ -23,7 +22,6 @@ export interface UpsertSessionInput {
   id: string;
   userId?: string;
   anonId?: string;
-  subject?: Subject;
   /** Lo deriva quien persiste (p. ej. del primer mensaje de la alumna); nunca se pisa con vacío. */
   title?: string;
 }
@@ -86,8 +84,8 @@ export interface UserSecurity extends UserFlags {
   safeWordHash: string | null;
 }
 
-export interface SubjectInsight {
-  subject: Subject;
+/** Resumen de actividad de una alumna: todas sus conversaciones, sin desglose por asignatura. */
+export interface ActivityInsight {
   sessionCount: number;
   messageCount: number;
   /** Veces que un mensaje de la alumna coincidió con el heurístico "pide la respuesta". */
@@ -105,9 +103,8 @@ export interface AdminUserSummary {
   flagOverrides: Record<string, boolean>;
 }
 
-/** Fila cruda (sesión × mensaje) de la que se derivan los SubjectInsight; ver `aggregateSubjectInsights`. */
-export interface SubjectInsightRow {
-  subject: Subject;
+/** Fila cruda (sesión × mensaje) de la que se deriva el ActivityInsight; ver `aggregateActivity`. */
+export interface ActivityRow {
   sessionId: string;
   role: MessageRole;
   content: string;
@@ -115,47 +112,29 @@ export interface SubjectInsightRow {
 }
 
 /**
- * Agrega filas crudas de sesión/mensaje en `SubjectInsight[]` por asignatura. Pura y compartida por
+ * Agrega filas crudas de sesión/mensaje en un único `ActivityInsight`. Pura y compartida por
  * `NeonRepo`/`MemoryRepo` (tasks.md 6.11): cada una trae sus propias filas con su propio acceso a
  * datos, pero la aritmética y el heurístico de "pide la respuesta" viven en un solo sitio.
  */
-export function aggregateSubjectInsights(rows: readonly SubjectInsightRow[]): SubjectInsight[] {
-  interface Bucket {
-    sessions: Set<string>;
-    messages: number;
-    answerRequests: number;
-    lastActivity: string | null;
-  }
-  const bySubject = new Map<Subject, Bucket>();
+export function aggregateActivity(rows: readonly ActivityRow[]): ActivityInsight {
+  const sessions = new Set<string>();
+  let messages = 0;
+  let answerRequests = 0;
+  let lastActivity: string | null = null;
   for (const row of rows) {
-    const bucket = bySubject.get(row.subject) ?? {
-      sessions: new Set<string>(),
-      messages: 0,
-      answerRequests: 0,
-      lastActivity: null,
-    };
-    bucket.sessions.add(row.sessionId);
-    if (row.role !== "system") bucket.messages += 1;
-    if (row.role === "user" && asksForTheAnswer(row.content)) bucket.answerRequests += 1;
-    if (!bucket.lastActivity || row.createdAt > bucket.lastActivity) bucket.lastActivity = row.createdAt;
-    bySubject.set(row.subject, bucket);
+    sessions.add(row.sessionId);
+    if (row.role !== "system") messages += 1;
+    if (row.role === "user" && asksForTheAnswer(row.content)) answerRequests += 1;
+    if (!lastActivity || row.createdAt > lastActivity) lastActivity = row.createdAt;
   }
-  return [...bySubject.entries()]
-    .map(([subject, b]) => ({
-      subject,
-      sessionCount: b.sessions.size,
-      messageCount: b.messages,
-      answerRequests: b.answerRequests,
-      lastActivity: b.lastActivity,
-    }))
-    .sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""));
+  return { sessionCount: sessions.size, messageCount: messages, answerRequests, lastActivity };
 }
 
 export interface Repo {
   /** Para /api/health (T-042): `db: "neon" | "memory"`. */
   readonly kind: RepoKind;
   /**
-   * Crea la conversación o, si ya existe, refresca updated_at, subject y title (idempotente por id).
+   * Crea la conversación o, si ya existe, refresca updated_at y title (idempotente por id).
    * La propiedad (userId/anonId) no cambia una vez fijada; solo se rellena si estaba vacía.
    */
   upsertSession(input: UpsertSessionInput): Promise<SessionSummary>;
@@ -176,8 +155,8 @@ export interface Repo {
   setSafeWordHash(userId: string, hash: string): Promise<void>;
   /** M7: actualiza solo los flags que llegan; devuelve el estado final de los tres. */
   updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags>;
-  /** M7: informe por asignatura del usuario, derivado de sus propias sesiones/mensajes. */
-  getSubjectInsights(userId: string): Promise<SubjectInsight[]>;
+  /** M7: resumen de actividad del usuario, derivado de sus propias sesiones/mensajes. */
+  getActivityInsight(userId: string): Promise<ActivityInsight>;
   /** M7 admin: todas las cuentas, más reciente primero. */
   listAllUsers(): Promise<AdminUserSummary[]>;
   /** M7 admin: cambia el rol de un usuario. */

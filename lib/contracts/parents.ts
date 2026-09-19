@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { Subject } from "./chat";
 
 /**
  * Contratos de /parents (M7): palabra segura, ajustes (flags) e informes. Fuente de verdad:
@@ -29,8 +28,8 @@ export interface ParentSettings {
   allowText: boolean;
 }
 
-export interface SubjectInsight {
-  subject: Subject;
+/** Resumen de actividad de la alumna (todas sus conversaciones; ya no hay desglose por asignatura). */
+export interface ActivityInsight {
   sessionCount: number;
   messageCount: number;
   /** Veces que un mensaje suyo coincidió con el heurístico "pide la respuesta". */
@@ -41,7 +40,7 @@ export interface SubjectInsight {
 export interface ParentInsightsResponse {
   hasSafeWord: boolean;
   settings: ParentSettings;
-  subjects: SubjectInsight[];
+  activity: ActivityInsight;
 }
 
 /** httpOnly, ~4h; ver lib/auth/parentUnlock.ts. */

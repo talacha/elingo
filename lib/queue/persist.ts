@@ -14,7 +14,6 @@ export async function persistJob(job: PersistJob): Promise<void> {
     id: job.sessionId,
     userId: job.userId,
     anonId: job.anonId,
-    subject: job.subject,
     // Title is derived from the first user message (optional, not overwritten)
     title: undefined,
   });

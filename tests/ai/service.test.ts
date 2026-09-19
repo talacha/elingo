@@ -73,7 +73,6 @@ describe("streamTutorReply", () => {
   it("sin claves usa el mock y devuelve { stream, done } del contrato", async () => {
     const { stream, done } = await streamTutorReply({
       sessionId: SESSION,
-      subject: "mates",
       messages: [{ role: "user", content: "Tengo este problema: 3/4 + 1/2" }],
     });
     const text = await readAll(stream);
@@ -110,13 +109,12 @@ describe("streamTutorReply", () => {
     expect(provider.inputs[1].messages.map((turn) => turn.content)).toEqual(["u10", "a10", "u11"]);
   });
 
-  it("pasa sessionId, subject y signal al proveedor y descarta los turnos en blanco", async () => {
+  it("pasa sessionId y signal al proveedor y descarta los turnos en blanco", async () => {
     const provider = fakeProvider();
     const controller = new AbortController();
     await streamTutorReply(
       {
         sessionId: SESSION,
-        subject: "lengua",
         signal: controller.signal,
         messages: [
           { role: "user", content: "   " },
@@ -126,7 +124,7 @@ describe("streamTutorReply", () => {
       },
       { provider },
     );
-    expect(provider.inputs[0]).toMatchObject({ sessionId: SESSION, subject: "lengua" });
+    expect(provider.inputs[0]).toMatchObject({ sessionId: SESSION });
     expect(provider.inputs[0].signal).toBe(controller.signal);
     expect(provider.inputs[0].messages).toEqual([{ role: "user", content: "¿Qué es un sujeto?" }]);
   });

@@ -6,7 +6,6 @@ import {
   type TutorStreamHandle,
 } from "@/lib/ai/providers/stream";
 import { ReplyFilter } from "@/lib/ai/providers/replyFilter";
-import { subjectHint } from "@/lib/ai/subjects";
 import type {
   StopReason,
   TutorProvider,
@@ -15,7 +14,6 @@ import type {
   TutorTurn,
   TutorUsage,
 } from "@/lib/contracts/ai";
-import type { Subject } from "@/lib/contracts/chat";
 import type { Grade } from "@/lib/contracts/grade";
 import { getEnv, type Env } from "@/lib/env";
 
@@ -151,7 +149,7 @@ export class OpenRouterProvider implements TutorProvider {
           model,
           max_tokens: this.maxOutputTokens,
           stream: true,
-          messages: buildMessages(input.subject, input.messages, input.grade),
+          messages: buildMessages(input.messages, input.grade),
           usage: { include: true },
           // Que el razonamiento de los modelos que lo separan no viaje en la respuesta.
           reasoning: { exclude: true },
@@ -254,10 +252,10 @@ function inputHasImage(input: Pick<TutorReplyInput, "messages">): boolean {
 }
 
 /**
- * Construye los mensajes con el prompt de sistema literal cacheado y pista de asignatura.
+ * Construye los mensajes con el prompt de sistema literal cacheado y la pista de estilo de respuesta.
  * Un turno con imágenes se envía como `content` multimodal (formato compatible OpenAI).
  */
-function buildMessages(subject: Subject | undefined, turns: readonly TutorTurn[], grade?: Grade) {
+function buildMessages(turns: readonly TutorTurn[], grade?: Grade) {
   const messages: Array<{
     role: "user" | "assistant" | "system";
     content: OpenRouterContent;
@@ -269,14 +267,6 @@ function buildMessages(subject: Subject | undefined, turns: readonly TutorTurn[]
   ];
 
   messages.push({ role: "system", content: REPLY_STYLE_HINT });
-
-  const hint = subjectHint(subject);
-  if (hint) {
-    messages.push({
-      role: "system",
-      content: hint,
-    });
-  }
 
   messages.push(...turns.map(toOpenRouterMessage));
 

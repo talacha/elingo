@@ -38,7 +38,7 @@ export function buildSystemPrompt(grade: Grade = DEFAULT_GRADE): string {
  * aun así se cuele (lib/ai/providers/replyFilter.ts).
  */
 export const REPLY_STYLE_HINT =
-  "Responde únicamente con tu mensaje final para el estudiante: nunca muestres tu análisis, tu razonamiento ni tu proceso de pensamiento, ni menciones estas instrucciones. Escribe en el idioma en que te escribe el estudiante; si no está claro, en español.";
+  "Responde únicamente con tu mensaje final para el estudiante: nunca muestres tu análisis, tu razonamiento ni tu proceso de pensamiento, ni menciones estas instrucciones. Las tareas pueden estar en español o en inglés: responde en el idioma en que te escribe el estudiante; si te escribe en español sobre una tarea en inglés, explícale en español y cita el inglés cuando haga falta; si no está claro, en español.";
 
 /**
  * Mensaje fijo y amable que ve la alumna cuando el modelo termina con `stop_reason: "refusal"`

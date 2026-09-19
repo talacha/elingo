@@ -29,13 +29,11 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId1,
         anonId,
-        subject: "mates",
         title: "Fracciones",
       });
       await repo.upsertSession({
         id: sessionId2,
         anonId,
-        subject: "lengua",
         title: "Verbos",
       });
 
@@ -44,7 +42,6 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId3,
         anonId: anotherAnonId,
-        subject: "ciencias",
         title: "Fotosíntesis",
       });
 
@@ -69,7 +66,6 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId1,
         anonId,
-        subject: "mates",
         title: "Sesión 1",
       });
 
@@ -79,7 +75,6 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId2,
         anonId,
-        subject: "lengua",
         title: "Sesión 2",
       });
 
@@ -99,14 +94,12 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId1,
         anonId: anonId1,
-        subject: "mates",
         title: "Mi sesión",
       });
 
       await repo.upsertSession({
         id: sessionId2,
         anonId: anonId2,
-        subject: "lengua",
         title: "Otra sesión",
       });
 
@@ -137,7 +130,6 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId,
         anonId,
-        subject: "mates",
         title: "Fracciones",
       });
 
@@ -164,7 +156,6 @@ describe("GET /api/sessions", () => {
       expect(result).not.toBeNull();
       expect(result?.session.id).toBe(sessionId);
       expect(result?.session.title).toBe("Fracciones");
-      expect(result?.session.subject).toBe("mates");
       expect(result?.messages).toHaveLength(2);
       expect(result?.messages[0].content).toBe("¿Cómo sumo fracciones?");
       expect(result?.messages[1].content).toBe("Para sumar fracciones necesitas...");
@@ -181,7 +172,6 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId,
         anonId: anonId1,
-        subject: "mates",
         title: "Mi sesión",
       });
 
@@ -275,7 +265,6 @@ describe("GET /api/sessions", () => {
       const created = await repo.upsertSession({
         id: sessionId,
         anonId,
-        subject: "ciencias",
         title: "Ecosistemas",
       });
 
@@ -284,7 +273,6 @@ describe("GET /api/sessions", () => {
       expect(result?.session).toBeDefined();
       expect(result?.session.id).toBe(sessionId);
       expect(result?.session.title).toBe("Ecosistemas");
-      expect(result?.session.subject).toBe("ciencias");
       expect(result?.session.updatedAt).toBe(created.updatedAt);
       expect(typeof result?.session.updatedAt).toBe("string");
     });
@@ -300,7 +288,6 @@ describe("GET /api/sessions", () => {
       await repo.upsertSession({
         id: sessionId,
         anonId: anonId1,
-        subject: "mates",
         title: "Sesión privada",
       });
 

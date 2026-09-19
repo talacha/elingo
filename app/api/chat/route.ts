@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { sessionId, subject, messages } = parsed.data;
+    const { sessionId, messages } = parsed.data;
     const env = getEnv();
     // Config efectiva: env vars + lo guardado en Postgres desde /admin (vía Redis).
     const effectiveEnv = await getEffectiveEnv(env);
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
 
     // Stream the AI response
     const { stream, done } = await streamTutorReply(
-      { sessionId, messages: tutorMessages, subject, ...(grade ? { grade } : {}) },
+      { sessionId, messages: tutorMessages, ...(grade ? { grade } : {}) },
       { provider: providerInstance, windowPairs: effectiveEnv.AI_WINDOW_PAIRS },
     );
 
@@ -206,7 +206,6 @@ export async function POST(req: NextRequest) {
           sessionId,
           userId,
           anonId,
-          subject,
           messages: [
             ...messages,
             {

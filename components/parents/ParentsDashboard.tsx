@@ -5,12 +5,6 @@ import type { ParentInsightsResponse } from "@/lib/contracts/parents";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
-const SUBJECT_NAMES: Record<string, string> = {
-  mates: "Mates",
-  lengua: "Lengua",
-  ciencias: "Ciencias",
-};
-
 type Page = "lock" | "set-safe-word" | "unlock" | "dashboard";
 
 export function ParentsDashboard() {
@@ -361,38 +355,28 @@ export function ParentsDashboard() {
         </Card>
 
         <Card>
-          <h2 className="font-display text-lg font-bold mb-4">Progreso por asignatura</h2>
+          <h2 className="font-display text-lg font-bold mb-4">Actividad</h2>
 
-          {insights.subjects.length === 0 ? (
+          {insights.activity.sessionCount === 0 ? (
             <p className="text-center text-ink-soft">Todavía no hay actividad que mostrar.</p>
           ) : (
-            <div className="space-y-4">
-              {insights.subjects.map((subject) => (
-                <div
-                  key={subject.subject}
-                  className="p-3 rounded-card border border-line bg-sky-50"
-                >
-                  <h3 className="font-display font-semibold mb-2">
-                    {SUBJECT_NAMES[subject.subject] || subject.subject}
-                  </h3>
-                  <div className="text-sm text-ink-soft space-y-1">
-                    <p>{subject.sessionCount} sesiones</p>
-                    <p>{subject.messageCount} mensajes</p>
-                    {subject.answerRequests > 0 && (
-                      <p className="text-peach-dark">
-                        Pidió la respuesta directa {subject.answerRequests} veces — puede ser
-                        buen momento para repasar juntos.
-                      </p>
-                    )}
-                    {subject.lastActivity && (
-                      <p>
-                        Última actividad:{" "}
-                        {new Date(subject.lastActivity).toLocaleDateString("es-ES")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="p-3 rounded-card border border-line bg-sky-50">
+              <div className="text-sm text-ink-soft space-y-1">
+                <p>{insights.activity.sessionCount} sesiones</p>
+                <p>{insights.activity.messageCount} mensajes</p>
+                {insights.activity.answerRequests > 0 && (
+                  <p className="text-peach-dark">
+                    Pidió la respuesta directa {insights.activity.answerRequests} veces — puede ser
+                    buen momento para repasar juntos.
+                  </p>
+                )}
+                {insights.activity.lastActivity && (
+                  <p>
+                    Última actividad:{" "}
+                    {new Date(insights.activity.lastActivity).toLocaleDateString("es-ES")}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </Card>
