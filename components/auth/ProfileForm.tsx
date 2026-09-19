@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DEFAULT_GRADE, GRADES, gradeDescription, parseGrade } from "@/lib/contracts/grade";
 
 interface Profile {
   displayName: string;
@@ -11,7 +12,7 @@ interface Profile {
 }
 
 export function ProfileForm() {
-  const [profile, setProfile] = useState<Profile>({ displayName: "", grade: "6º" });
+  const [profile, setProfile] = useState<Profile>({ displayName: "", grade: DEFAULT_GRADE });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -50,13 +51,13 @@ export function ProfileForm() {
           const data = await res.json();
           setProfile({
             displayName: data.displayName || "",
-            grade: data.grade || "6º",
+            grade: parseGrade(data.grade) ?? DEFAULT_GRADE,
           });
         } else {
           // If not found, initialize with empty values
           setProfile({
             displayName: "",
-            grade: "6º",
+            grade: DEFAULT_GRADE,
           });
         }
       } catch {
@@ -197,10 +198,11 @@ export function ProfileForm() {
             disabled={saving}
             className="w-full px-4 py-2 rounded-card border border-line bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-sun disabled:opacity-50"
           >
-            <option value="5º">5º de primaria</option>
-            <option value="6º">6º de primaria</option>
-            <option value="1º ESO">1º de ESO</option>
-            <option value="2º ESO">2º de ESO</option>
+            {GRADES.map((grade) => (
+              <option key={grade} value={grade}>
+                {gradeDescription(grade)}
+              </option>
+            ))}
           </select>
         </div>
 

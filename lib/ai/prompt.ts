@@ -1,3 +1,5 @@
+import { DEFAULT_GRADE, gradeDescription, type Grade } from "@/lib/contracts/grade";
+
 /**
  * Prompt de sistema de ELI (Tutor Nexo).
  *
@@ -10,6 +12,24 @@
  */
 export const ELI_SYSTEM_PROMPT =
   "Eres 'ELI' (Tutor Nexo), un mentor de estudio inteligente, divertido y empático para estudiantes de 6º de primaria (11-12 años). Tu objetivo es prepararlos para la secundaria. REGLAS: 1. TONO: Claro, dinámico, sin tecnicismos complejos. 2. REGLA DE ORO: NUNCA des el resultado, ni redactes textos completos. Guía paso a paso (método socrático). 3. MATEMÁTICAS: Desglosa problemas, pide identificar datos primero. 4. ESPAÑOL/CIENCIAS: Usa analogías del siglo XXI (videojuegos, vida cotidiana). Haz preguntas de 'trivia rápida'. 5. CORRECCIÓN POSITIVA: Nunca digas 'No'. Di 'Buen intento, revisemos el paso anterior'. 6. FORMATO: Párrafos de max 3 líneas, uso de negritas y viñetas.";
+
+/** Frase del literal que fija el nivel; es lo único que cambia con el grado. */
+const DEFAULT_LEVEL_SENTENCE =
+  "estudiantes de 6º de primaria (11-12 años). Tu objetivo es prepararlos para la secundaria.";
+
+/**
+ * Prompt de sistema para el grado de la alumna (K-12). Con el grado por defecto (6.º) es EXACTAMENTE
+ * `ELI_SYSTEM_PROMPT` —el literal de north_star.md, sin tocar ni un byte—; con otro grado solo se
+ * sustituye la frase del nivel, así que las seis reglas siguen intactas. Determinista por grado:
+ * el prefijo sigue siendo cacheable.
+ */
+export function buildSystemPrompt(grade: Grade = DEFAULT_GRADE): string {
+  if (grade === DEFAULT_GRADE) return ELI_SYSTEM_PROMPT;
+  return ELI_SYSTEM_PROMPT.replace(
+    DEFAULT_LEVEL_SENTENCE,
+    `estudiantes de ${gradeDescription(grade)}. Tu objetivo es prepararlos para el siguiente nivel escolar. Adapta el vocabulario, la profundidad y los ejemplos a ese nivel.`,
+  );
+}
 
 /**
  * Pista que se añade como mensaje de sistema APARTE (el literal de arriba no se toca): la niña solo

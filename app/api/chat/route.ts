@@ -5,6 +5,7 @@ import { checkBudget, incrementBudget } from "@/lib/ai/budget";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
 import { getEnv } from "@/lib/env";
+import { parseGrade, type Grade } from "@/lib/contracts/grade";
 import { getEffectiveEnv } from "@/lib/config/effective";
 import { getEffectiveFlags } from "@/lib/config/flags";
 import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
@@ -61,6 +62,8 @@ export async function POST(req: NextRequest) {
     // Get authenticated user from Supabase if available
     const supabase = await createSupabaseServerClient();
     let userId: string | undefined;
+    // Nivel K-12 del perfil de la alumna con sesión; sin sesión (o valor irreconocible), el de por defecto.
+    let grade: Grade | undefined;
     if (supabase) {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest) {
           displayName: data.user.user_metadata?.display_name,
         });
         userId = user.id;
+        grade = parseGrade(user.grade) ?? undefined;
       }
     }
 
@@ -154,7 +158,7 @@ export async function POST(req: NextRequest) {
 
     // Stream the AI response
     const { stream, done } = await streamTutorReply(
-      { sessionId, messages: tutorMessages, subject },
+      { sessionId, messages: tutorMessages, subject, ...(grade ? { grade } : {}) },
       { provider: providerInstance, windowPairs: effectiveEnv.AI_WINDOW_PAIRS },
     );
 
