@@ -216,11 +216,14 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
     });
 
     it("M7: getAiConfig/setAiConfig", async () => {
+      // Una base persistente (Neon) conserva la fila de una ejecución anterior: se parte y se termina limpio.
+      await repo.deleteAiConfig("OPENROUTER_MODEL_TEST");
       expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBeUndefined();
       await repo.setAiConfig("OPENROUTER_MODEL_TEST", "deepseek/deepseek-v4-flash-0731:free", "admin@eli.ngo");
       expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBe("deepseek/deepseek-v4-flash-0731:free");
       await repo.setAiConfig("OPENROUTER_MODEL_TEST", "inclusionai/ling-3.0-flash:free", "admin@eli.ngo");
       expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBe("inclusionai/ling-3.0-flash:free");
+      await repo.deleteAiConfig("OPENROUTER_MODEL_TEST");
     });
 
     it("deleteAiConfig quita la fila y no falla si no existía", async () => {
