@@ -221,7 +221,11 @@ describe("POST /api/speech", () => {
       );
       await POST(req);
 
-      expect(synthesizeSpeechMock).toHaveBeenCalledWith("Texto especial para prueba");
+      // El segundo argumento es la config efectiva (env + lo guardado desde /admin).
+      expect(synthesizeSpeechMock).toHaveBeenCalledWith(
+        "Texto especial para prueba",
+        expect.objectContaining({ FISH_AUDIO_MODEL: expect.any(String) }),
+      );
     });
 
     it("preserves custom content type from provider", async () => {

@@ -5,6 +5,8 @@ import { checkBudget, incrementBudget } from "@/lib/ai/budget";
 import { streamTutorReply } from "@/lib/ai/service";
 import { enqueuePersist } from "@/lib/queue";
 import { getEnv } from "@/lib/env";
+import { getEffectiveEnv } from "@/lib/config/effective";
+import { getEffectiveFlags } from "@/lib/config/flags";
 import { createChatLogEvent, logChatEvent } from "@/lib/ai/log";
 import { getProviderWithOverrides } from "@/lib/ai/providers";
 import { modelForRequest, type TutorTurn } from "@/lib/contracts/ai";
@@ -40,14 +42,17 @@ export async function POST(req: NextRequest) {
 
     const { sessionId, subject, messages } = parsed.data;
     const env = getEnv();
+    // Config efectiva: env vars + lo guardado en Postgres desde /admin (vía Redis).
+    const effectiveEnv = await getEffectiveEnv(env);
+    const maxInputChars = effectiveEnv.AI_MAX_INPUT_CHARS;
 
     // Input cost guard: check last message length
     const lastMessage = messages.at(-1);
-    if (lastMessage && lastMessage.content.length > env.AI_MAX_INPUT_CHARS) {
+    if (lastMessage && lastMessage.content.length > maxInputChars) {
       return NextResponse.json(
         ...chatErrorResponse(
           "invalid_request",
-          `Tu mensaje es demasiado largo. Usa menos de ${env.AI_MAX_INPUT_CHARS} caracteres.`,
+          `Tu mensaje es demasiado largo. Usa menos de ${maxInputChars} caracteres.`,
           400
         )
       );
@@ -68,25 +73,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Enforce image restrictions: if user is authenticated and disallows images,
-    // reject messages with images before processing.
-    if (userId) {
-      try {
-        const repo = getRepo();
-        const security = await repo.getUserSecurity(userId);
-        const lastMessage = messages.at(-1);
-        if (security && !security.allowImages && lastMessage?.image) {
-          return NextResponse.json(
-            ...chatErrorResponse(
-              "invalid_request",
-              "Las imágenes están desactivadas para esta cuenta. Pídele a quien te acompaña que las active en /parents.",
-              400
-            )
-          );
-        }
-      } catch (error) {
-        // Log error but proceed gracefully (permissive default)
-        console.error("[chat] Failed to check user security flags:", error);
+    // Modo imagen (feature flag `image_mode`, global Y de la cuenta): con el flag apagado se rechazan
+    // los mensajes con imagen antes de procesarlos. `getEffectiveFlags` nunca lanza (falla abierto).
+    if (messages.at(-1)?.image) {
+      const flags = await getEffectiveFlags(userId);
+      if (!flags.image_mode) {
+        return NextResponse.json(
+          ...chatErrorResponse(
+            "invalid_request",
+            "Las imágenes están desactivadas ahora mismo. Si te acompaña alguien, pídele que lo revise en /parents.",
+            400
+          )
+        );
       }
     }
 
@@ -157,7 +155,7 @@ export async function POST(req: NextRequest) {
     // Stream the AI response
     const { stream, done } = await streamTutorReply(
       { sessionId, messages: tutorMessages, subject },
-      { provider: providerInstance },
+      { provider: providerInstance, windowPairs: effectiveEnv.AI_WINDOW_PAIRS },
     );
 
     // Get the provider and model upfront for the header (modelForRequest: el modelo de visión si

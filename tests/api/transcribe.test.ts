@@ -192,7 +192,9 @@ describe("POST /api/transcribe", () => {
         expect.objectContaining({
           audio: "customaudio123",
           mimeType: "audio/mp3",
-        })
+        }),
+        // Config efectiva (env + lo guardado desde /admin): de ahí sale el `speech_model`.
+        expect.objectContaining({ OPENROUTER_TRANSCRIBE_MODEL: expect.any(String) }),
       );
     });
   });

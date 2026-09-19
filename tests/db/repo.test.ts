@@ -222,6 +222,58 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
       await repo.setAiConfig("OPENROUTER_MODEL_TEST", "inclusionai/ling-3.0-flash:free", "admin@eli.ngo");
       expect((await repo.getAiConfig())["OPENROUTER_MODEL_TEST"]).toBe("inclusionai/ling-3.0-flash:free");
     });
+
+    it("deleteAiConfig quita la fila y no falla si no existía", async () => {
+      await repo.setAiConfig("delete_me_test", "x", "admin@eli.ngo");
+      expect((await repo.getAiConfig())["delete_me_test"]).toBe("x");
+      await repo.deleteAiConfig("delete_me_test");
+      expect((await repo.getAiConfig())["delete_me_test"]).toBeUndefined();
+      await expect(repo.deleteAiConfig("delete_me_test")).resolves.toBeUndefined();
+    });
+
+    it("feature flags por cuenta: set, update, delete y aislamiento entre cuentas", async () => {
+      const a = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      const b = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      expect(await repo.getAccountFlags(a.id)).toEqual({});
+
+      await repo.setAccountFlag(a.id, "voice_mode", false, "admin@eli.ngo");
+      await repo.setAccountFlag(a.id, "image_mode", false, "admin@eli.ngo");
+      expect(await repo.getAccountFlags(a.id)).toEqual({ voice_mode: false, image_mode: false });
+      expect(await repo.getAccountFlags(b.id)).toEqual({});
+
+      await repo.setAccountFlag(a.id, "voice_mode", true, "admin@eli.ngo");
+      expect(await repo.getAccountFlags(a.id)).toEqual({ voice_mode: true, image_mode: false });
+
+      // null = quitar el override (vuelve a seguir al global); quitar uno inexistente no falla.
+      await repo.setAccountFlag(a.id, "voice_mode", null, "admin@eli.ngo");
+      await repo.setAccountFlag(a.id, "voice_mode", null, "admin@eli.ngo");
+      expect(await repo.getAccountFlags(a.id)).toEqual({ image_mode: false });
+
+      const found = (await repo.listAllUsers()).find((u) => u.id === a.id);
+      expect(found?.flagOverrides).toEqual({ image_mode: false });
+    });
+
+    it("allowImages/allowVoice de getUserSecurity y updateUserFlags viven en los flags por cuenta", async () => {
+      const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
+      await repo.updateUserFlags(user.id, { allowVoice: false });
+      expect(await repo.getAccountFlags(user.id)).toEqual({ voice_mode: false });
+      expect(await repo.getUserSecurity(user.id)).toMatchObject({ allowVoice: false, allowImages: true });
+
+      await repo.setAccountFlag(user.id, "image_mode", false, "admin@eli.ngo");
+      expect(await repo.getUserSecurity(user.id)).toMatchObject({ allowVoice: false, allowImages: false });
+
+      // allowText sigue en `users` y un patch vacío no cambia nada.
+      expect(await repo.updateUserFlags(user.id, { allowText: false })).toEqual({
+        allowImages: false,
+        allowVoice: false,
+        allowText: false,
+      });
+      expect(await repo.updateUserFlags(user.id, {})).toEqual({
+        allowImages: false,
+        allowVoice: false,
+        allowText: false,
+      });
+    });
   });
 }
 

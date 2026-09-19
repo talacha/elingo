@@ -13,6 +13,8 @@ export class TutorInputError extends Error {
 export interface StreamTutorReplyOptions {
   /** Proveedor explícito (tests y herramientas); por defecto el que dicta el entorno. */
   provider?: TutorProvider;
+  /** Pares de historial a conservar; por defecto `AI_WINDOW_PAIRS` (la config de /admin lo sobrescribe). */
+  windowPairs?: number;
 }
 
 /**
@@ -28,7 +30,7 @@ export async function streamTutorReply(
   options: StreamTutorReplyOptions = {},
 ): Promise<TutorReplyResult> {
   const history = input.messages.filter((turn) => turn.content.trim().length > 0);
-  const messages = slidingWindow(history);
+  const messages = slidingWindow(history, options.windowPairs);
   const last = messages.at(-1);
   if (!last || last.role !== "user") {
     throw new TutorInputError("El último mensaje debe ser de la alumna y no puede estar vacío.");

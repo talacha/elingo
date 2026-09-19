@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getEffectiveFlags } from "@/lib/config/flags";
 import { getRepo } from "@/lib/db";
 
 export const runtime = "nodejs";
 
+/**
+ * Qué partes de la interfaz de chat se muestran. `allowVoice` ← flag `voice_mode`, `allowImages` ←
+ * flag `image_mode` (global Y de la cuenta, ver lib/config/flags.ts); `allowText` sigue siendo el
+ * interruptor de /parents.
+ */
 export interface ChatCapabilities {
   allowImages: boolean;
   allowVoice: boolean;
@@ -11,51 +17,33 @@ export interface ChatCapabilities {
 }
 
 export async function GET() {
-  // Default: all capabilities enabled (for anonymous users or if lookups fail)
-  const defaultCapabilities: ChatCapabilities = {
-    allowImages: true,
-    allowVoice: true,
-    allowText: true,
-  };
+  // Por defecto todo activo (anónima o si falla una lectura): nunca bloquea el chat por un fallo.
+  const defaults: ChatCapabilities = { allowImages: true, allowVoice: true, allowText: true };
 
   try {
-    // Get authenticated user from Supabase if available
     const supabase = await createSupabaseServerClient();
-    if (!supabase) {
-      // No Supabase client: return all-true (anonymous)
-      return NextResponse.json(defaultCapabilities, { status: 200 });
+    const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+
+    // Sin sesión solo cuenta el flag global; con sesión, también el de la cuenta.
+    let userId: string | undefined;
+    let allowText = true;
+    if (data.user) {
+      const repo = getRepo();
+      const user = await repo.upsertUserFromSupabase({
+        supabaseUserId: data.user.id,
+        displayName: data.user.user_metadata?.display_name,
+      });
+      userId = user.id;
+      allowText = (await repo.getUserSecurity(user.id))?.allowText ?? true;
     }
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
-      // Not authenticated: return all-true (anonymous)
-      return NextResponse.json(defaultCapabilities, { status: 200 });
-    }
-
-    // User is authenticated: get their security flags
-    const repo = getRepo();
-    const user = await repo.upsertUserFromSupabase({
-      supabaseUserId: data.user.id,
-      displayName: data.user.user_metadata?.display_name,
-    });
-
-    const security = await repo.getUserSecurity(user.id);
-    if (security) {
-      return NextResponse.json(
-        {
-          allowImages: security.allowImages,
-          allowVoice: security.allowVoice,
-          allowText: security.allowText,
-        },
-        { status: 200 }
-      );
-    }
-
-    // Security record not found: return all-true (permissive default)
-    return NextResponse.json(defaultCapabilities, { status: 200 });
+    const flags = await getEffectiveFlags(userId);
+    return NextResponse.json(
+      { allowImages: flags.image_mode, allowVoice: flags.voice_mode, allowText },
+      { status: 200 },
+    );
   } catch (error) {
-    // Any error during lookup: log and return all-true (permissive default, never blocks)
     console.error("[chat/capabilities] Failed to fetch user capabilities:", error);
-    return NextResponse.json(defaultCapabilities, { status: 200 });
+    return NextResponse.json(defaults, { status: 200 });
   }
 }

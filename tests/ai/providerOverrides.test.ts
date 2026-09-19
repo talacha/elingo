@@ -34,10 +34,12 @@ describe("T-067: getProviderWithOverrides", () => {
   });
 
   it("un override de AI_PROVIDER cambia el proveedor activo aunque las claves apunten a otro", async () => {
+    // Sin override, la clave de Anthropic haría que el proveedor fuera anthropic.
+    process.env.ANTHROPIC_API_KEY = "sk-test";
     process.env.OPENROUTER_API_KEY = "test-key";
     resetEnvCache();
     const { getRepo } = await import("@/lib/db");
-    await getRepo().setAiConfig("AI_PROVIDER", "openrouter", "admin@eli.ngo");
+    await getRepo().setAiConfig("ai_provider", "openrouter", "admin@eli.ngo");
 
     const provider = await getProviderWithOverrides(getEnv());
     expect(provider).toBeInstanceOf(OpenRouterProvider);
@@ -48,7 +50,7 @@ describe("T-067: getProviderWithOverrides", () => {
     process.env.AI_PROVIDER = "anthropic";
     resetEnvCache();
     const { getRepo } = await import("@/lib/db");
-    await getRepo().setAiConfig("ANTHROPIC_MODEL", "claude-sonnet-5", "admin@eli.ngo");
+    await getRepo().setAiConfig("anthropic_model", "claude-sonnet-5", "admin@eli.ngo");
 
     const provider = await getProviderWithOverrides(getEnv());
     expect(provider).toBeInstanceOf(AnthropicProvider);

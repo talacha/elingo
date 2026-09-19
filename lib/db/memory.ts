@@ -1,6 +1,8 @@
 import type { ChatMessage, Subject } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import {
+  ACCOUNT_FLAG_IMAGE,
+  ACCOUNT_FLAG_VOICE,
   aggregateSubjectInsights,
   MAX_SESSIONS,
   type AdminUserSummary,
@@ -20,8 +22,6 @@ import type { MessageRole, UserRole } from "./schema";
 /** M7: UserRecord más los campos que no expone el contrato público de upsertUserFromSupabase. */
 interface MemUser extends UserRecord {
   safeWordHash: string | null;
-  allowImages: boolean;
-  allowVoice: boolean;
   allowText: boolean;
 }
 
@@ -59,6 +59,8 @@ export class MemoryRepo implements Repo {
   private readonly sessions = new Map<string, MemSession>();
   private readonly messages = new Map<string, MemMessage>();
   private readonly appConfigStore = new Map<string, string>();
+  /** userId → (flag → enabled): solo los flags que se apartan del global. */
+  private readonly accountFlagStore = new Map<string, Map<string, boolean>>();
   private seq = 0;
 
   constructor(private readonly now: () => number = Date.now) {}
@@ -154,8 +156,6 @@ export class MemoryRepo implements Repo {
           role: input.role ?? "student",
           createdAt: new Date(this.now()).toISOString(),
           safeWordHash: null,
-          allowImages: true,
-          allowVoice: true,
           allowText: true,
         };
     this.users.set(row.id, row);
@@ -172,8 +172,13 @@ export class MemoryRepo implements Repo {
   async getUserSecurity(userId: string): Promise<UserSecurity | null> {
     const user = this.users.get(userId);
     if (!user) return null;
-    const { safeWordHash, allowImages, allowVoice, allowText } = user;
-    return { safeWordHash, allowImages, allowVoice, allowText };
+    const flags = this.accountFlagStore.get(userId);
+    return {
+      safeWordHash: user.safeWordHash,
+      allowText: user.allowText,
+      allowImages: flags?.get(ACCOUNT_FLAG_IMAGE) ?? true,
+      allowVoice: flags?.get(ACCOUNT_FLAG_VOICE) ?? true,
+    };
   }
 
   async setSafeWordHash(userId: string, hash: string): Promise<void> {
@@ -185,8 +190,11 @@ export class MemoryRepo implements Repo {
   async updateUserFlags(userId: string, patch: Partial<UserFlags>): Promise<UserFlags> {
     const user = this.users.get(userId);
     if (!user) throw new Error(`users: el usuario ${userId} no existe`);
-    Object.assign(user, patch);
-    return { allowImages: user.allowImages, allowVoice: user.allowVoice, allowText: user.allowText };
+    if (patch.allowText !== undefined) user.allowText = patch.allowText;
+    if (patch.allowImages !== undefined) await this.setAccountFlag(userId, ACCOUNT_FLAG_IMAGE, patch.allowImages);
+    if (patch.allowVoice !== undefined) await this.setAccountFlag(userId, ACCOUNT_FLAG_VOICE, patch.allowVoice);
+    const { allowImages, allowVoice, allowText } = (await this.getUserSecurity(userId)) as UserSecurity;
+    return { allowImages, allowVoice, allowText };
   }
 
   async getSubjectInsights(userId: string): Promise<SubjectInsight[]> {
@@ -222,6 +230,7 @@ export class MemoryRepo implements Repo {
         role: u.role,
         createdAt: u.createdAt,
         sessionCount: sessionCountByUser.get(u.id) ?? 0,
+        flagOverrides: Object.fromEntries(this.accountFlagStore.get(u.id) ?? []),
       }));
   }
 
@@ -238,6 +247,21 @@ export class MemoryRepo implements Repo {
 
   async setAiConfig(key: string, value: string): Promise<void> {
     this.appConfigStore.set(key, value);
+  }
+
+  async deleteAiConfig(key: string): Promise<void> {
+    this.appConfigStore.delete(key);
+  }
+
+  async getAccountFlags(userId: string): Promise<Record<string, boolean>> {
+    return Object.fromEntries(this.accountFlagStore.get(userId) ?? []);
+  }
+
+  async setAccountFlag(userId: string, flag: string, enabled: boolean | null): Promise<void> {
+    const flags = this.accountFlagStore.get(userId) ?? new Map<string, boolean>();
+    if (enabled === null) flags.delete(flag);
+    else flags.set(flag, enabled);
+    this.accountFlagStore.set(userId, flags);
   }
 }
 
