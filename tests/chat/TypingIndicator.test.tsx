@@ -78,22 +78,20 @@ describe("nextPhraseIndex", () => {
 describe("TypingIndicator", () => {
   const html = renderToStaticMarkup(<TypingIndicator />);
 
-  it("empieza con «ELI está pensando…»", () => {
-    expect(html).toContain("ELI está pensando…");
-  });
-
-  it("el lector de pantalla oye un texto fijo y la frase que rota es decorativa (aria-hidden)", () => {
+  it("el lector de pantalla oye un texto fijo y lo que se escribe es decorativo (aria-hidden)", () => {
     expect(html).toContain('role="status"');
     expect(html).toMatch(/<span class="sr-only">ELI está pensando<\/span>/);
-    expect(html).toMatch(/aria-hidden="true"[^>]*animate-phrase-in/);
+    expect(html).toMatch(/<span aria-hidden="true"/);
   });
 
-  it("apaga el movimiento con «reducir movimiento»", () => {
-    expect(html).toContain("motion-reduce:animate-none");
-    expect(html).toContain("motion-reduce:bg-none");
+  it("arranca sin texto y con el cursor quieto, listo para empezar a escribir", () => {
+    expect(html).not.toContain("ELI está pensando…");
+    expect(html).toMatch(/<span class="ml-0\.5 h-\[1\.15em\] w-0\.5 rounded-full bg-sky "><\/span>/);
+    expect(html).not.toContain("animate-cursor-blink");
   });
 
-  it("mantiene los tres puntos que rebotan", () => {
-    expect((html.match(/animate-bounce/g) || []).length).toBe(3);
+  it("ya no usa los puntos que rebotan ni el brillo", () => {
+    expect(html).not.toContain("animate-bounce");
+    expect(html).not.toContain("animate-shimmer");
   });
 });
