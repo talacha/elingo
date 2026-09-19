@@ -6,6 +6,7 @@ import { cn } from "@/components/ui/cn";
 import type { Subject, ImageMimeType } from "@/lib/contracts/chat";
 import type { ChatCapabilities } from "@/app/api/chat/capabilities/route";
 import { useSpeechInput } from "./useSpeechInput";
+import { stopAllSpeech } from "./useSpeechOutput";
 import { compressImageFile } from "./imageCompress";
 
 /** Límite de entrada del servidor (`AI_MAX_INPUT_CHARS`, tasks.md 6.6). */
@@ -21,7 +22,12 @@ const SUBJECT_PLACEHOLDERS: Record<Subject, string> = {
 interface ChatInputProps {
   /** ELI está respondiendo: se ofrece «Parar» en vez de «Enviar». */
   streaming: boolean;
-  onSend: (text: string, image?: { mediaType: ImageMimeType; data: string }) => void;
+  /** `options.spoken`: el texto se dictó por voz, así que ELI contesta también con voz. */
+  onSend: (
+    text: string,
+    image?: { mediaType: ImageMimeType; data: string },
+    options?: { spoken: boolean },
+  ) => void;
   onStop: () => void;
   /** Asignatura seleccionada, para personalizar el placeholder. */
   subject?: Subject;
@@ -108,9 +114,19 @@ export function ChatInput({
   const canSend = value.trim().length > 0 && !streaming;
   const placeholder = subject ? SUBJECT_PLACEHOLDERS[subject] : INPUT_PLACEHOLDER;
 
+  // La pregunta cuenta como hablada si el texto vino del micrófono; se olvida al enviar o al vaciar
+  // el cuadro, así que escribir una pregunta nueva desde cero vuelve a ser una pregunta escrita.
+  const spokenRef = useRef(false);
   const speechInput = useSpeechInput((text) => {
+    spokenRef.current = true;
     setValue(text);
   });
+
+  const startListening = () => {
+    // Que la voz de ELI no entre por el micrófono como si fuera la pregunta de la niña.
+    stopAllSpeech();
+    speechInput.start();
+  };
 
   // El área de texto crece con el mensaje hasta unas seis líneas; después hace scroll interno.
   useEffect(() => {
@@ -143,7 +159,9 @@ export function ChatInput({
   const submit = () => {
     const text = value.trim();
     if (!text || streaming) return;
-    onSend(text, image ?? undefined);
+    stopAllSpeech();
+    onSend(text, image ?? undefined, { spoken: spokenRef.current });
+    spokenRef.current = false;
     setValue("");
     setImage(null);
     // Restaurar el foco al input después de enviar
@@ -199,7 +217,10 @@ export function ChatInput({
           id="chat-input"
           ref={textareaRef}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            if (event.target.value === "") spokenRef.current = false;
+            setValue(event.target.value);
+          }}
           onKeyDown={onKeyDown}
           rows={1}
           maxLength={MAX_INPUT_CHARS}
@@ -215,10 +236,10 @@ export function ChatInput({
           <button
             type="button"
             disabled={streaming}
-            onMouseDown={() => speechInput.start()}
+            onMouseDown={startListening}
             onMouseUp={() => speechInput.stop()}
             onMouseLeave={() => speechInput.stop()}
-            onTouchStart={() => speechInput.start()}
+            onTouchStart={startListening}
             onTouchEnd={() => speechInput.stop()}
             aria-label="Grabar voz"
             className={cn(

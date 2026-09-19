@@ -43,6 +43,17 @@ export interface TutorChatState {
   subject?: Subject;
   /** Cabeceras informativas de la última respuesta 200 (`x-provider`, `x-model`). */
   meta: { provider: string | null; model: string | null } | null;
+  /**
+   * Respuesta de ELI que hay que leer en voz alta: la de una pregunta hablada, una vez terminada
+   * con normalidad. Nunca se rellena si el turno falla o se para con «Parar». `null` el resto del tiempo.
+   */
+  speakReplyId: string | null;
+}
+
+/** Opciones de un envío. */
+export interface SendOptions {
+  /** La pregunta se dictó por voz: ELI contesta también con voz. */
+  spoken?: boolean;
 }
 
 export interface TutorChatOptions {
@@ -61,8 +72,8 @@ export interface TutorChat {
   getState(): TutorChatState;
   subscribe(listener: () => void): () => void;
   /** Envía un mensaje de la niña. Resuelve al terminar el turno; `false` si se ignoró (vacío o turno en curso). */
-  send(text: string, image?: ChatImage): Promise<boolean>;
-  /** Reenvía la última pregunta sin respuesta (tras un error o un «Parar» temprano). */
+  send(text: string, image?: ChatImage, options?: SendOptions): Promise<boolean>;
+  /** Reenvía la última pregunta sin respuesta (tras un error o un «Parar» temprano); conserva si era hablada. */
   retry(): Promise<boolean>;
   /** Detiene el turno en curso conservando lo que ELI haya dicho ya. */
   stop(): void;
@@ -190,8 +201,11 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     error: null,
     subject: options.subject,
     meta: null,
+    speakReplyId: null,
   };
   let sessionId: string | null = null;
+  /** Si la última pregunta enviada era hablada (para que `retry` conserve la voz). */
+  let lastSpoken = false;
   let controller: AbortController | null = null;
 
   const setState = (patch: Partial<TutorChatState>) => {
@@ -226,7 +240,7 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
   };
 
   /** Un turno: envía `history` (termina en un mensaje de la niña) y acumula la respuesta de ELI. */
-  const run = async (history: ChatMessage[]): Promise<boolean> => {
+  const run = async (history: ChatMessage[], spoken: boolean): Promise<boolean> => {
     const assistant: ChatMessage = {
       id: uuid(),
       role: "assistant",
@@ -240,7 +254,7 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     };
     const own = new AbortController();
     controller = own;
-    setState({ messages: [...history, assistant], status: "streaming", error: null });
+    setState({ messages: [...history, assistant], status: "streaming", error: null, speakReplyId: null });
 
     // Cierra el turno. Si ELI no llegó a decir nada, su burbuja vacía desaparece.
     const finish = (error: TutorChatError | null) => {
@@ -250,7 +264,10 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
         current && current.content === ""
           ? state.messages.filter((m) => m.id !== assistant.id)
           : state.messages;
-      setState({ messages, status: error ? "error" : "idle", error });
+      // Solo se lee en voz una respuesta a una pregunta hablada que terminó bien y con texto: un
+      // error, un corte o «Parar» (que conserva lo dicho a medias) nunca disparan la voz.
+      const speak = spoken && !error && !own.signal.aborted && current !== undefined && current.content !== "";
+      setState({ messages, status: error ? "error" : "idle", error, speakReplyId: speak ? assistant.id : null });
     };
 
     let sawText = false;
@@ -308,7 +325,7 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     return true;
   };
 
-  const send = async (text: string, image?: ChatImage): Promise<boolean> => {
+  const send = async (text: string, image?: ChatImage, sendOptions: SendOptions = {}): Promise<boolean> => {
     const content = text.trim();
     if (!content || state.status === "streaming") return false;
     // Una pregunta huérfana (sin respuesta por error o «Parar») se sustituye por la nueva:
@@ -322,16 +339,18 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
       createdAt: new Date().toISOString(),
       ...(image ? { image } : {}),
     };
-    return run([...base, message]);
+    lastSpoken = Boolean(sendOptions.spoken);
+    return run([...base, message], lastSpoken);
   };
 
   const retry = async (): Promise<boolean> => {
     if (state.status === "streaming" || state.messages.at(-1)?.role !== "user") return false;
-    return run(state.messages);
+    return run(state.messages, lastSpoken);
   };
 
   const loadMessages = (messages: ChatMessage[], subject?: Subject) => {
-    setState({ messages, status: "idle", error: null, subject: subject ?? state.subject });
+    lastSpoken = false;
+    setState({ messages, status: "idle", error: null, subject: subject ?? state.subject, speakReplyId: null });
   };
 
   const newSession = () => {
@@ -345,7 +364,8 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     } catch {
       // Sin almacenamiento: la sesión vive mientras dure la página.
     }
-    setState({ messages: [], status: "idle", error: null, subject: options.subject });
+    lastSpoken = false;
+    setState({ messages: [], status: "idle", error: null, subject: options.subject, speakReplyId: null });
   };
 
   const getSessionId = (): string => ensureSessionId();
@@ -387,7 +407,7 @@ export function useTutorChat(options?: TutorChatOptions) {
     ...state,
     isThinking: isThinking(state),
     canRetry: canRetry(state),
-    send: (text: string, image?: ChatImage) => chat.send(text, image),
+    send: (text: string, image?: ChatImage, options?: SendOptions) => chat.send(text, image, options),
     retry: chat.retry,
     stop: chat.stop,
     setSubject: chat.setSubject,

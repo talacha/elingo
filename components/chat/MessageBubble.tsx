@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { EliMark } from "@/components/landing/EliMark";
 import { cn } from "@/components/ui/cn";
 import { Markdown } from "./Markdown";
@@ -47,10 +48,23 @@ interface MessageBubbleProps {
   message: ChatMessage;
   /** La respuesta de ELI aún está llegando (muestra el cursor). */
   streaming?: boolean;
+  /** Leer esta respuesta en voz alta nada más terminar (la pregunta fue hablada). Suena una sola vez. */
+  autoSpeak?: boolean;
 }
 
-export function MessageBubble({ message, streaming = false }: MessageBubbleProps) {
+export function MessageBubble({ message, streaming = false, autoSpeak = false }: MessageBubbleProps) {
   const speechOutput = useSpeechOutput();
+
+  // Voz automática: la niña habló, ELI contesta hablando. Una vez por burbuja; «Escuchar»/«Detener»
+  // siguen funcionando igual. Si el navegador bloquea el autoplay, `speak` cae a la voz del navegador
+  // y, si tampoco puede, la niña tiene el botón «Escuchar».
+  const autoSpoken = useRef(false);
+  useEffect(() => {
+    if (!autoSpeak || streaming || !message.content || autoSpoken.current) return;
+    autoSpoken.current = true;
+    speechOutput.speak(message.content);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo debe dispararse al activarse `autoSpeak`
+  }, [autoSpeak, streaming]);
 
   if (message.role === "user") {
     return (
