@@ -16,8 +16,12 @@ import type { Env } from "@/lib/env";
 export const CONFIG_CATEGORIES = ["ia", "modelos", "voz", "limites"] as const;
 export type ConfigCategory = (typeof CONFIG_CATEGORIES)[number];
 
-/** Qué debe poder procesar un modelo para servir a este parámetro (se comprueba contra OpenRouter). */
-export type ModelCapability = "text" | "image" | "audio";
+/**
+ * Qué debe ser/poder procesar un modelo para servir a este parámetro (se comprueba contra OpenRouter):
+ * `text`/`image` = entrada del chat; `transcription`/`speech` = categorías propias del catálogo
+ * (`/models?output_modalities=…`) que no salen en el listado por defecto.
+ */
+export type ModelCapability = "text" | "image" | "transcription" | "speech";
 
 export type ConfigKind = "provider" | "model" | "int" | "string";
 
@@ -65,20 +69,11 @@ export const CONFIG_PARAMS = [
     key: "visual_model",
     envKey: "OPENROUTER_VISION_MODEL",
     label: "Modelo visual",
-    description: "Modelo gratuito que interpreta las fotos (modo imagen). Debe aceptar imágenes.",
+    description:
+      "Modelo gratuito que interpreta las fotos (modo imagen), entendimiento de imagen, no generación. Debe aceptar imágenes; el por defecto también acepta vídeo.",
     category: "modelos",
     kind: "model",
     capability: "image",
-    editable: true,
-  },
-  {
-    key: "speech_model",
-    envKey: "OPENROUTER_TRANSCRIBE_MODEL",
-    label: "Modelo de voz",
-    description: "Modelo gratuito que entiende la voz de la alumna (modo voz). Debe aceptar audio.",
-    category: "modelos",
-    kind: "model",
-    capability: "audio",
     editable: true,
   },
   {
@@ -91,11 +86,53 @@ export const CONFIG_PARAMS = [
     editable: true,
   },
   {
-    key: "tts_model",
-    envKey: "FISH_AUDIO_MODEL",
-    label: "Modelo de síntesis de voz",
+    key: "stt_model",
+    envKey: "OPENROUTER_TRANSCRIBE_MODEL",
+    label: "Modelo de voz → texto (STT)",
     description:
-      "Modelo de Fish Audio que habla las respuestas de ELI. OpenRouter no ofrece síntesis gratuita; sin clave de Fish Audio se usa la voz del navegador.",
+      "Transcribe lo que dice la alumna (modo voz). Modelo de la categoría «transcription» de OpenRouter; no hay ninguno gratuito.",
+    category: "voz",
+    kind: "model",
+    capability: "transcription",
+    editable: true,
+  },
+  {
+    key: "tts_model",
+    envKey: "OPENROUTER_TTS_MODEL",
+    label: "Modelo de texto → voz (TTS)",
+    description:
+      "Habla las respuestas de ELI. Modelo de la categoría «speech» de OpenRouter; el gratuito no tiene garantías de disponibilidad.",
+    category: "voz",
+    kind: "model",
+    capability: "speech",
+    editable: true,
+  },
+  {
+    key: "tts_voice",
+    envKey: "OPENROUTER_TTS_VOICE",
+    label: "Voz del TTS",
+    description:
+      "Identificador de voz del modelo TTS. Vacío = sin voz explícita (solo vale si el proveedor tiene una por defecto).",
+    category: "voz",
+    kind: "string",
+    editable: true,
+  },
+  {
+    key: "tts_fallback_model",
+    envKey: "OPENROUTER_TTS_FALLBACK_MODEL",
+    label: "TTS de respaldo",
+    description:
+      "Si el TTS principal falla se prueba este (de pago, unos céntimos por miles de caracteres). Sin respaldo ni Fish Audio se usa la voz del navegador.",
+    category: "voz",
+    kind: "model",
+    capability: "speech",
+    editable: true,
+  },
+  {
+    key: "tts_fallback_voice",
+    envKey: "OPENROUTER_TTS_FALLBACK_VOICE",
+    label: "Voz del TTS de respaldo",
+    description: "Voz para el modelo de respaldo (Kokoro: ef_dora es español).",
     category: "voz",
     kind: "string",
     editable: true,

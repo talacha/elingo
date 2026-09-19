@@ -1,26 +1,12 @@
 import { getEnv, type Env } from "@/lib/env";
 
-/** Sube al formato que OpenRouter espera en `input_audio.format` (wav, mp3, m4a, ogg, ...). */
-const FORMAT_ALIASES: Record<string, string> = {
-  mpeg: "mp3",
-  mp4: "m4a",
-  "x-m4a": "m4a",
-  "x-wav": "wav",
-  wave: "wav",
-};
-
-const TRANSCRIBE_PROMPT =
-  "Transcribe literalmente lo que dice la persona en este audio, en el idioma en que habla. " +
-  "Responde solo con la transcripción, sin comillas ni comentarios.";
-
 /**
- * Entiende la voz de la alumna con el modelo de voz (`speech_model`, gratis en OpenRouter): un modelo
- * con entrada de audio, llamado por `/chat/completions` con una parte `input_audio`. Nunca lanza:
- * `null` si no hay OPENROUTER_API_KEY, si la llamada falla o si no hay texto — la ruta lo trata como
- * "no disponible" y el cliente cae a `SpeechRecognition` del navegador.
+ * Voz de la alumna → texto con el `stt_model` (OpenRouter): endpoint DEDICADO
+ * `POST /api/v1/audio/transcriptions` (no es `/chat/completions`), que acepta `webm` —el formato que
+ * graba `MediaRecorder` de Chrome— además de wav/mp3/ogg/m4a/flac/aac. Se cobra por segundo de audio.
  *
- * Salvedad: OpenRouter documenta wav/mp3 (y algunos más según el modelo); `MediaRecorder` de Chrome
- * entrega `audio/webm`, que el modelo puede rechazar. En ese caso se degrada igual que un fallo.
+ * Nunca lanza: `null` si no hay OPENROUTER_API_KEY, si la llamada falla o si no hay texto — la ruta
+ * lo trata como "no disponible" (el cliente ya debería haber intentado `SpeechRecognition` antes).
  */
 export async function transcribeAudio(
   input: { audio: string; mimeType: string },
@@ -28,9 +14,8 @@ export async function transcribeAudio(
 ): Promise<string | null> {
   if (!env.OPENROUTER_API_KEY) return null;
   try {
-    const subtype = input.mimeType.split("/")[1]?.split(";")[0]?.trim() || "webm";
-    const format = FORMAT_ALIASES[subtype] ?? subtype;
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const format = input.mimeType.split("/")[1]?.split(";")[0]?.trim() || "webm";
+    const response = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
@@ -40,25 +25,15 @@ export async function transcribeAudio(
       },
       body: JSON.stringify({
         model: env.OPENROUTER_TRANSCRIBE_MODEL,
-        max_tokens: 400,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: TRANSCRIBE_PROMPT },
-              { type: "input_audio", input_audio: { data: input.audio, format } },
-            ],
-          },
-        ],
+        input_audio: { data: input.audio, format },
       }),
     });
     if (!response.ok) {
       console.error("[ai/transcribe] OpenRouter respondió mal", { status: response.status });
       return null;
     }
-    const body = (await response.json()) as { choices?: { message?: { content?: unknown } }[] };
-    const text = body.choices?.[0]?.message?.content;
-    return typeof text === "string" && text.trim().length > 0 ? text.trim() : null;
+    const body = (await response.json()) as { text?: unknown };
+    return typeof body.text === "string" && body.text.trim().length > 0 ? body.text.trim() : null;
   } catch (error) {
     console.error("[ai/transcribe] fallo al llamar a OpenRouter", error);
     return null;

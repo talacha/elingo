@@ -31,7 +31,7 @@ export interface AdminConfigParam {
   category: "ia" | "modelos" | "voz" | "limites";
   kind: "provider" | "model" | "int" | "string";
   options?: string[];
-  capability?: "text" | "image" | "audio";
+  capability?: "text" | "image" | "transcription" | "speech";
   /** false = solo lectura (se fija con variable de entorno y redeploy). */
   editable: boolean;
   /** Valor efectivo ahora mismo. */

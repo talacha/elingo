@@ -13,17 +13,37 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const ENV_KEYS = ["ADMIN_EMAILS", "AI_PROVIDER", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"];
 const BASE = "nvidia/nemotron-3.5-lightning:free";
-const OMNI = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
+const VISION = "google/gemma-4-31b-it:free";
+const STT = "openai/whisper-large-v3-turbo";
+const TTS = "fish-audio/s2.1-pro-free:free";
+const TTS_FALLBACK = "hexgrad/kokoro-82m";
 
-/** Catálogo de OpenRouter reducido: el modelo base es solo de texto; el omni acepta imagen y audio. */
-const CATALOG = {
+/**
+ * Catálogos de OpenRouter reducidos. Como en la API real, el listado de chat NO trae los modelos de
+ * voz: STT y TTS solo salen con `?output_modalities=transcription|speech`.
+ */
+const CHAT_CATALOG = {
   data: [
     { id: BASE, architecture: { input_modalities: ["text"] } },
-    { id: OMNI, architecture: { input_modalities: ["text", "audio", "image", "video"] } },
+    { id: VISION, architecture: { input_modalities: ["text", "image", "video"] } },
     { id: "openrouter/free", architecture: { input_modalities: ["text", "image"] } },
     { id: "vendor/some-model", architecture: { input_modalities: ["text"] } },
   ],
 };
+const STT_CATALOG = { data: [{ id: STT, architecture: { input_modalities: ["audio"] } }] };
+const TTS_CATALOG = {
+  data: [
+    { id: TTS, architecture: { input_modalities: ["text"] } },
+    { id: TTS_FALLBACK, architecture: { input_modalities: ["text"] } },
+  ],
+};
+
+const catalogFor = (url: string) =>
+  url.includes("output_modalities=speech")
+    ? TTS_CATALOG
+    : url.includes("output_modalities=transcription")
+      ? STT_CATALOG
+      : CHAT_CATALOG;
 
 let fetchSpy: ReturnType<typeof vi.spyOn>;
 
@@ -54,7 +74,9 @@ function reset() {
 beforeEach(() => {
   reset();
   vi.clearAllMocks();
-  fetchSpy = vi.spyOn(global, "fetch").mockImplementation(async () => new Response(JSON.stringify(CATALOG)));
+  fetchSpy = vi
+    .spyOn(global, "fetch")
+    .mockImplementation(async (input) => new Response(JSON.stringify(catalogFor(String(input)))));
 });
 
 afterEach(() => {
@@ -82,8 +104,12 @@ describe("GET /api/admin/config", () => {
 
     const byKey = Object.fromEntries(body.params.map((p: { key: string }) => [p.key, p]));
     expect(byKey.base_model).toMatchObject({ value: BASE, source: "env", editable: true, capability: "text" });
-    expect(byKey.visual_model).toMatchObject({ value: OMNI, capability: "image" });
-    expect(byKey.speech_model).toMatchObject({ value: OMNI, capability: "audio" });
+    expect(byKey.visual_model).toMatchObject({ value: VISION, capability: "image" });
+    expect(byKey.stt_model).toMatchObject({ value: STT, capability: "transcription", category: "voz" });
+    expect(byKey.tts_model).toMatchObject({ value: TTS, capability: "speech", category: "voz" });
+    expect(byKey.tts_fallback_model).toMatchObject({ value: TTS_FALLBACK, capability: "speech" });
+    expect(byKey.tts_fallback_voice).toMatchObject({ value: "ef_dora" });
+    expect(byKey.speech_model).toBeUndefined();
     expect(byKey.rate_limit_max).toMatchObject({ editable: false });
     expect(byKey.ai_provider.options).toEqual(["anthropic", "openrouter", "mock"]);
 
@@ -152,25 +178,42 @@ describe("PUT /api/admin/config", () => {
     expect((await response.json()).message).toContain("no acepta imágenes");
   });
 
-  it("rejects a speech_model that cannot take audio", async () => {
+  it("rejects a chat model as stt_model or tts_model (they live in their own catalogs)", async () => {
     mockAdmin();
-    const response = await put("speech_model", "openrouter/free");
-    expect(response.status).toBe(400);
-    expect((await response.json()).message).toContain("no acepta audio");
+    for (const key of ["stt_model", "tts_model", "tts_fallback_model"]) {
+      const response = await put(key, "openrouter/free");
+      expect(response.status).toBe(400);
+      expect((await response.json()).message).toContain("del catálogo de OpenRouter");
+    }
+  });
+
+  it("rejects a TTS model as stt_model and the other way round", async () => {
+    mockAdmin();
+    expect((await put("stt_model", TTS)).status).toBe(400);
+    expect((await put("tts_model", STT)).status).toBe(400);
+  });
+
+  it("rejects a speech model as base_model", async () => {
+    mockAdmin();
+    expect((await put("base_model", STT)).status).toBe(400);
   });
 
   it("rejects a model that is not in the OpenRouter catalog", async () => {
     mockAdmin();
     const response = await put("base_model", "vendor/does-not-exist");
     expect(response.status).toBe(400);
-    expect((await response.json()).message).toContain("no está en el catálogo");
+    expect((await response.json()).message).toContain("no es un modelo de chat del catálogo");
   });
 
   it("accepts models that do have the capability", async () => {
     mockAdmin();
     expect((await put("base_model", "openrouter/free")).status).toBe(200);
     expect((await put("visual_model", "openrouter/free")).status).toBe(200);
-    expect((await put("speech_model", OMNI)).status).toBe(200);
+    expect((await put("visual_model", VISION)).status).toBe(200);
+    expect((await put("stt_model", STT)).status).toBe(200);
+    expect((await put("tts_model", TTS)).status).toBe(200);
+    expect((await put("tts_fallback_model", TTS_FALLBACK)).status).toBe(200);
+    expect((await put("tts_voice", "some-voice")).status).toBe(200);
   });
 
   it("still saves when the OpenRouter catalog is unreachable (never blocks a change)", async () => {
