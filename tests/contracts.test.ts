@@ -16,21 +16,23 @@ describe("contrato POST /api/chat", () => {
   it("acepta una petición válida", () => {
     const parsed = chatRequestSchema.safeParse({
       sessionId: uuid(),
-      subject: "mates",
       messages: [{ id: uuid(), role: "user", content: "Tengo este problema: 3/4 + 1/2" }],
     });
     expect(parsed.success).toBe(true);
   });
 
-  it("rechaza mensajes vacíos y asignaturas desconocidas", () => {
+  it("rechaza mensajes vacíos", () => {
     expect(chatRequestSchema.safeParse({ sessionId: uuid(), messages: [] }).success).toBe(false);
-    expect(
-      chatRequestSchema.safeParse({
-        sessionId: uuid(),
-        subject: "historia",
-        messages: [{ id: uuid(), role: "user", content: "hola" }],
-      }).success,
-    ).toBe(false);
+  });
+
+  it("ya no existen las asignaturas: un `subject` que envíe un cliente antiguo se ignora, no se guarda ni falla", () => {
+    const parsed = chatRequestSchema.safeParse({
+      sessionId: uuid(),
+      subject: "mates",
+      messages: [{ id: uuid(), role: "user", content: "hola" }],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && "subject" in parsed.data).toBe(false);
   });
 
   it("T-050: acepta una imagen adjunta con mediaType y tamaño válidos", () => {

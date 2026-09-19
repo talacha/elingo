@@ -116,7 +116,7 @@ Los tipos viven en `lib/contracts/*.ts` (creados en T-001). Cambiar un contrato 
 
 ```ts
 // lib/contracts/chat.ts
-export type Subject = "mates" | "lengua" | "ciencias";
+// Sin asignaturas (T-088): ELI no maneja Mates/Lengua/Ciencias ni en la UI ni en la API.
 
 export interface ChatMessage {
   id: string;                 // uuid generado por el cliente
@@ -127,7 +127,6 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   sessionId: string;          // uuid de la conversación, generado por el cliente
-  subject?: Subject;
   messages: ChatMessage[];    // historial completo de la conversación, el último es del usuario
 }
 
@@ -155,7 +154,6 @@ export interface TutorTurn { role: "user" | "assistant"; content: string }
 
 export interface TutorReplyInput {
   sessionId: string;
-  subject?: Subject;
   messages: TutorTurn[];      // ya recortado por slidingWindow; solo texto, nunca bloques de thinking
   signal?: AbortSignal;
 }
@@ -220,7 +218,6 @@ export interface PersistJob {
   sessionId: string;
   userId?: string;
   anonId?: string;
-  subject?: Subject;
   messages: Array<ChatMessage & { tokensIn?: number; tokensOut?: number; model?: string }>;  // historial completo
 }
 export declare function enqueuePersist(job: PersistJob): Promise<void>;   // idempotente por message.id
@@ -232,7 +229,7 @@ Fallbacks: sin `UPSTASH_REDIS_REST_URL`, rate limit en memoria del proceso; sin 
 
 ```ts
 // lib/contracts/sessions.ts
-export interface SessionSummary { id: string; title: string | null; subject: Subject | null; updatedAt: string }
+export interface SessionSummary { id: string; title: string | null; updatedAt: string }
 export interface SessionsListResponse { sessions: SessionSummary[] }                  // GET /api/sessions
 export interface SessionDetailResponse { session: SessionSummary; messages: ChatMessage[] }  // GET /api/sessions/:id (404 si no es tuya)
 ```
@@ -255,7 +252,7 @@ create table chat_sessions (
   id uuid primary key,
   user_id uuid references users(id) on delete set null,
   anon_id text,
-  subject text check (subject in ('mates', 'lengua', 'ciencias')),
+  subject text check (subject in ('mates', 'lengua', 'ciencias')),   -- OBSOLETA (T-088): ya no se lee ni se escribe; se conserva para no migrar producción
   title text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -386,7 +383,7 @@ create table app_config (
 );
 ```
 
-Sin migración para "informes": se calculan al vuelo desde `chat_sessions`/`messages` agrupando por `subject` (ver 6.11), nada nuevo que persistir ni mantener sincronizado.
+Sin migración para "informes": se calculan al vuelo desde `chat_sessions`/`messages` (ver 6.11), nada nuevo que persistir ni mantener sincronizado.
 
 ### 6.11 Palabra segura, ajustes e informes (`/parents`)
 
@@ -399,12 +396,12 @@ export declare function verifySafeWord(word: string, stored: string): Promise<bo
 export const setSafeWordRequestSchema = z.object({ safeWord: z.string().min(4).max(60) });
 export const unlockRequestSchema = z.object({ safeWord: z.string().min(1).max(60) });
 export interface ParentSettings { allowImages: boolean; allowVoice: boolean; allowText: boolean }
-export interface SubjectInsight {
-  subject: Subject; sessionCount: number; messageCount: number;
+export interface ActivityInsight {          // un único resumen de TODAS las conversaciones (T-088: ya no hay desglose por asignatura)
+  sessionCount: number; messageCount: number;
   answerRequests: number;   // veces que se detectó "dame la respuesta" (mismo heurístico que el mock, T-011)
   lastActivity: string | null;
 }
-export interface ParentInsightsResponse { hasSafeWord: boolean; settings: ParentSettings; subjects: SubjectInsight[] }
+export interface ParentInsightsResponse { hasSafeWord: boolean; settings: ParentSettings; activity: ActivityInsight }
 export const PARENT_UNLOCK_COOKIE = "eli_parent_unlock";
 ```
 
@@ -507,6 +504,15 @@ export interface TutorReplyInput { …; grade?: Grade }
 - **Dónde se guarda**: `users.grade` (texto). La columna admite valores antiguos («6º», «1º ESO», «5º»): `parseGrade` los entiende (1.º–4.º ESO = 7.º–10.º grado; 1.º–2.º Bachillerato = 11.º–12.º) para no romper perfiles existentes. `PATCH /api/perfil` valida con `parseGrade` (`400` si no es K-12) y guarda siempre el canónico.
 - **Cómo llega al prompt**: `POST /api/chat` lee el grado del perfil de la alumna con sesión (`upsertUserFromSupabase(...).grade`) y lo pasa en `TutorReplyInput.grade`; los tres proveedores llaman a `buildSystemPrompt(grade)`. Sin sesión, o con un valor irreconocible, se usa el grado por defecto (6.º): el prompt de siempre. Ver también `north_star.md` (la sustitución de la frase del nivel es una decisión registrada allí).
 - **Limitación**: una alumna anónima no puede elegir grado (no hay perfil). Si hiciera falta, habría que enviarlo en la petición de chat.
+
+### 6.16 Sin asignaturas y tareas bilingües (T-088)
+
+- **No hay asignaturas** (Mates, Lengua, Ciencias) **ni en la UI ni en la API**: sin selector, sin ejemplos etiquetados, sin `subject` en `POST /api/chat`, en la cola de persistencia, en `TutorReplyInput`, en `SessionSummary` ni en la pista de sistema. Un cliente antiguo que aún envíe `subject` no falla: zod lo ignora y no se guarda.
+- **`/parents`**: `subjects: SubjectInsight[]` pasa a `activity: ActivityInsight`, un único resumen de todas las conversaciones (`repo.getActivityInsight`, `aggregateActivity`). Antes solo contaban las sesiones con asignatura.
+- **Base de datos**: la columna `chat_sessions.subject` (y su `CHECK`) se **conserva sin uso** para no migrar producción; se puede borrar en una migración aparte. Las filas antiguas mantienen su valor, que nadie lee.
+- **Landing**: la sección «Materias» pasa a «Cómo te ayuda» (cualquier tarea · español e inglés · paso a paso).
+- **Tareas en español o en inglés** (las escuelas de México son bilingües): la UI sigue en español, pero `REPLY_STYLE_HINT` (`lib/ai/prompt.ts`) pide responder en el idioma en que escribe el estudiante; si escribe en español sobre una tarea en inglés, explica en español y cita el inglés; si no está claro, en español. La pantalla vacía avisa de que también vale el inglés y ofrece ejemplos en los dos idiomas.
+- **Pendiente de decidir (north_star.md)**: el prompt literal conserva las reglas «3. MATEMÁTICAS» y «4. ESPAÑOL/CIENCIAS» y habla de «6º de primaria». No es UI ni API, así que no se ha tocado; cambiarlo exige una decisión registrada en `north_star.md` (y su test).
 
 ## 7. Tabla de estado
 

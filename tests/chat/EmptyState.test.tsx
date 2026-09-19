@@ -2,47 +2,36 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { EmptyState } from "@/components/chat/EmptyState";
 
+const render = (disabled = false) =>
+  renderToStaticMarkup(<EmptyState onSelectPrompt={vi.fn()} disabled={disabled} />);
+
 describe("EmptyState", () => {
-  it("muestra bienvenida", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={false} />,
-    );
+  it("muestra bienvenida en español y avisa de que también vale el inglés", () => {
+    const html = render();
     expect(html).toContain("¡Hola! Soy ELI");
     expect(html).toContain("Cuéntame qué no entiendes");
+    expect(html).toContain("You can write to me in English too.");
   });
 
-  it("muestra ejemplos para cada asignatura", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={false} />,
-    );
-    // Mates
-    expect(html).toContain("Ejemplos de Mates");
+  it("ofrece ejemplos para empezar en español y en inglés (las tareas son bilingües)", () => {
+    const html = render();
     expect(html).toContain("3/4 + 1/2");
-    // Lengua
-    expect(html).toContain("Ejemplos de Lengua");
-    expect(html).toContain("verbos regulares");
-    // Ciencias
-    expect(html).toContain("Ejemplos de Ciencias");
-    expect(html).toContain("ciclo del agua");
+    expect(html).toContain("evaporación y transpiración");
+    expect(html).toContain("their");
+    expect(html).toContain("water cycle");
   });
 
-  it("tiene tres ejemplos por asignatura", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={false} />,
-    );
-    // 3 asignaturas × 3 ejemplos = 9 botones
-    const buttonCount = (html.match(/<button/g) || []).length;
-    expect(buttonCount).toBe(9);
+  it("no muestra asignaturas: ni encabezados por asignatura ni el selector", () => {
+    const html = render();
+    expect(html).not.toMatch(/\b(Mates|Lengua|Ciencias|Matemáticas)\b/);
+    expect(html).not.toMatch(/asignatura/i);
+  });
+
+  it("tiene cinco ejemplos, todos como botones", () => {
+    expect((render().match(/<button/g) || []).length).toBe(5);
   });
 
   it("respeta disabled", () => {
-    const onSelectPrompt = vi.fn();
-    const html = renderToStaticMarkup(
-      <EmptyState onSelectPrompt={onSelectPrompt} disabled={true} />,
-    );
-    expect(html).toMatch(/disabled/);
+    expect(render(true)).toMatch(/disabled/);
   });
 });

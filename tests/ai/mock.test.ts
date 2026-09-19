@@ -30,14 +30,14 @@ describe("MockProvider", () => {
   });
 
   it("responde en ~6 chunks, en español, con negritas y viñetas y sin ningún resultado", async () => {
-    const { stream, done } = await provider.reply(ask(PROBLEM, { subject: "mates" }));
+    const { stream, done } = await provider.reply(ask(PROBLEM));
     const chunks = await collect(stream);
     const text = chunks.join("");
 
     expect(chunks).toHaveLength(6);
     expect(text).toMatch(/\*\*[^*]+\*\*/);
     expect(text).toMatch(/^- /m);
-    expect(text).toContain("datos");
+    expect(text).toContain("piden");
     expect(text).not.toMatch(/\d/);
     expect(text).not.toContain("=");
     expect(text).not.toContain(REFUSAL_MESSAGE);
@@ -63,16 +63,10 @@ describe("MockProvider", () => {
     expect(second).toEqual(first);
   });
 
-  it("adapta la guía a la asignatura", async () => {
-    const texts = await Promise.all(
-      (["mates", "lengua", "ciencias", undefined] as const).map(async (subject) =>
-        (await collect((await provider.reply(ask(PROBLEM, { subject }))).stream)).join(""),
-      ),
-    );
-    expect(new Set(texts).size).toBe(4);
-    expect(texts[0]).toContain("datos");
-    expect(texts[1]).toContain("misión");
-    expect(texts[2]).toContain("Trivia rápida");
+  it("usa siempre la misma guía general: no hay asignaturas", async () => {
+    const text = (await collect((await provider.reply(ask(PROBLEM))).stream)).join("");
+    expect(text).toContain("lo importante");
+    expect(text).not.toMatch(/misión|Trivia rápida|observación/);
   });
 
   it("redirige si el último mensaje pide la solución (trampa) sin dar ningún resultado", async () => {

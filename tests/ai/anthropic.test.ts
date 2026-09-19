@@ -291,23 +291,15 @@ describe("AnthropicProvider", () => {
     expect(provider.model).toBe("claude-fable-5-1");
   });
 
-  it("añade la asignatura como bloque de sistema separado, después del bloque cacheado", async () => {
+  it("el sistema es un único bloque cacheado con el prompt literal: ya no hay bloque de asignatura", async () => {
     const { client, calls } = fakeClient({ text: ["ok"] });
-    await readAll(
-      (await new AnthropicProvider({ client }).reply({ ...input, subject: "ciencias" })).stream,
-    );
+    await readAll((await new AnthropicProvider({ client }).reply(input)).stream);
     const system = calls.plain[0].params.system as ReturnType<typeof buildSystem>;
-    expect(system).toHaveLength(2);
-    expect(system[0]).toEqual({
-      type: "text",
-      text: ELI_SYSTEM_PROMPT,
-      cache_control: { type: "ephemeral" },
-    });
-    expect(system[1]).toEqual({
-      type: "text",
-      text: "La alumna ha elegido la asignatura: Ciencias.",
-    });
-    expect(buildSystem(undefined)).toHaveLength(1);
+    expect(system).toEqual([
+      { type: "text", text: ELI_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    ]);
+    expect(buildSystem()).toHaveLength(1);
+    expect(JSON.stringify(system)).not.toMatch(/asignatura/i);
   });
 
   it("cancelar el stream aborta la petición sin añadir avisos ni logs", async () => {

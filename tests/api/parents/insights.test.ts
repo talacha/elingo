@@ -115,7 +115,7 @@ describe("GET /api/parents/insights", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns 200 with empty subjects if no activity", async () => {
+  it("returns 200 with an empty activity summary if there is no activity", async () => {
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");
     const mockSupabase = {
       auth: {
@@ -153,7 +153,8 @@ describe("GET /api/parents/insights", () => {
     const data = JSON.parse(text);
     expect(data.hasSafeWord).toBe(false);
     expect(data.settings).toBeDefined();
-    expect(Array.isArray(data.subjects)).toBe(true);
+    expect(data.activity).toEqual({ sessionCount: 0, messageCount: 0, answerRequests: 0, lastActivity: null });
+    expect(data).not.toHaveProperty("subjects");
   });
 
   it("returns 200 with correct structure when unlocked and authenticated", async () => {
@@ -195,6 +196,7 @@ describe("GET /api/parents/insights", () => {
     expect(data.settings).toHaveProperty("allowImages");
     expect(data.settings).toHaveProperty("allowVoice");
     expect(data.settings).toHaveProperty("allowText");
-    expect(Array.isArray(data.subjects)).toBe(true);
+    expect(data).toHaveProperty("activity");
+    expect(data).not.toHaveProperty("subjects");
   });
 });

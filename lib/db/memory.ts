@@ -1,16 +1,16 @@
-import type { ChatMessage, Subject } from "@/lib/contracts/chat";
+import type { ChatMessage } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import {
   ACCOUNT_FLAG_IMAGE,
   ACCOUNT_FLAG_VOICE,
-  aggregateSubjectInsights,
+  aggregateActivity,
   MAX_SESSIONS,
   type AdminUserSummary,
   type NewMessage,
   type Repo,
   type RepoScope,
-  type SubjectInsight,
-  type SubjectInsightRow,
+  type ActivityInsight,
+  type ActivityRow,
   type SupabaseUserInput,
   type UpsertSessionInput,
   type UserFlags,
@@ -29,7 +29,6 @@ interface MemSession {
   id: string;
   userId: string | null;
   anonId: string | null;
-  subject: Subject | null;
   title: string | null;
   createdAt: number;
   updatedAt: number;
@@ -73,7 +72,6 @@ export class MemoryRepo implements Repo {
           ...prev,
           userId: prev.userId ?? input.userId ?? null,
           anonId: prev.anonId ?? input.anonId ?? null,
-          subject: input.subject ?? prev.subject,
           title: input.title ?? prev.title,
           updatedAt: t,
           seq: ++this.seq,
@@ -82,7 +80,6 @@ export class MemoryRepo implements Repo {
           id: input.id,
           userId: input.userId ?? null,
           anonId: input.anonId ?? null,
-          subject: input.subject ?? null,
           title: input.title ?? null,
           createdAt: t,
           updatedAt: t,
@@ -197,23 +194,17 @@ export class MemoryRepo implements Repo {
     return { allowImages, allowVoice, allowText };
   }
 
-  async getSubjectInsights(userId: string): Promise<SubjectInsight[]> {
-    const sessionIds = new Set(
-      [...this.sessions.values()].filter((s) => s.userId === userId && s.subject).map((s) => s.id),
-    );
-    const subjectBySession = new Map(
-      [...this.sessions.values()].filter((s) => sessionIds.has(s.id)).map((s) => [s.id, s.subject as Subject]),
-    );
-    const rows: SubjectInsightRow[] = [...this.messages.values()]
+  async getActivityInsight(userId: string): Promise<ActivityInsight> {
+    const sessionIds = new Set([...this.sessions.values()].filter((s) => s.userId === userId).map((s) => s.id));
+    const rows: ActivityRow[] = [...this.messages.values()]
       .filter((m) => sessionIds.has(m.sessionId))
       .map((m) => ({
-        subject: subjectBySession.get(m.sessionId) as Subject,
         sessionId: m.sessionId,
         role: m.role,
         content: m.content,
         createdAt: new Date(m.createdAt).toISOString(),
       }));
-    return aggregateSubjectInsights(rows);
+    return aggregateActivity(rows);
   }
 
   async listAllUsers(): Promise<AdminUserSummary[]> {
@@ -281,7 +272,6 @@ function toSummary(s: MemSession): SessionSummary {
   return {
     id: s.id,
     title: s.title,
-    subject: s.subject,
     updatedAt: new Date(s.updatedAt).toISOString(),
   };
 }

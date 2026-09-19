@@ -1,17 +1,17 @@
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import type { ChatMessage, Subject } from "@/lib/contracts/chat";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import type { ChatMessage } from "@/lib/contracts/chat";
 import type { SessionDetailResponse, SessionSummary } from "@/lib/contracts/sessions";
 import { createDb, type Db } from "./client";
 import {
   ACCOUNT_FLAG_IMAGE,
   ACCOUNT_FLAG_VOICE,
-  aggregateSubjectInsights,
+  aggregateActivity,
   MAX_SESSIONS,
   type AdminUserSummary,
   type NewMessage,
   type Repo,
   type RepoScope,
-  type SubjectInsight,
+  type ActivityInsight,
   type SupabaseUserInput,
   type UpsertSessionInput,
   type UserFlags,
@@ -50,7 +50,6 @@ export class NeonRepo implements Repo {
         id: input.id,
         userId: input.userId ?? null,
         anonId: input.anonId ?? null,
-        subject: input.subject ?? null,
         title: input.title ?? null,
       })
       .onConflictDoUpdate({
@@ -59,7 +58,6 @@ export class NeonRepo implements Repo {
           // La propiedad no cambia una vez fijada; solo se rellena si estaba vacía.
           userId: sql`coalesce(${chatSessions.userId}, excluded.user_id)`,
           anonId: sql`coalesce(${chatSessions.anonId}, excluded.anon_id)`,
-          subject: sql`coalesce(excluded.subject, ${chatSessions.subject})`,
           title: sql`coalesce(excluded.title, ${chatSessions.title})`,
           updatedAt: sql`now()`,
         },
@@ -194,10 +192,9 @@ export class NeonRepo implements Repo {
     };
   }
 
-  async getSubjectInsights(userId: string): Promise<SubjectInsight[]> {
+  async getActivityInsight(userId: string): Promise<ActivityInsight> {
     const rows = await this.db
       .select({
-        subject: chatSessions.subject,
         sessionId: chatSessions.id,
         role: messages.role,
         content: messages.content,
@@ -205,10 +202,8 @@ export class NeonRepo implements Repo {
       })
       .from(chatSessions)
       .innerJoin(messages, eq(messages.sessionId, chatSessions.id))
-      .where(and(eq(chatSessions.userId, userId), isNotNull(chatSessions.subject)));
-    return aggregateSubjectInsights(
-      rows.map((r) => ({ ...r, subject: r.subject as Subject, createdAt: r.createdAt.toISOString() })),
-    );
+      .where(eq(chatSessions.userId, userId));
+    return aggregateActivity(rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })));
   }
 
   async listAllUsers(): Promise<AdminUserSummary[]> {
@@ -296,7 +291,6 @@ function toSummary(row: ChatSessionRow): SessionSummary {
   return {
     id: row.id,
     title: row.title,
-    subject: row.subject,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

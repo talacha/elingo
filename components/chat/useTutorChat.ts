@@ -8,7 +8,6 @@ import {
   type ChatImage,
   type ChatMessage,
   type ChatRequest,
-  type Subject,
 } from "@/lib/contracts/chat";
 
 /*
@@ -40,7 +39,6 @@ export interface TutorChatState {
   messages: ChatMessage[];
   status: ChatStatus;
   error: TutorChatError | null;
-  subject?: Subject;
   /** Cabeceras informativas de la última respuesta 200 (`x-provider`, `x-model`). */
   meta: { provider: string | null; model: string | null } | null;
   /**
@@ -63,7 +61,6 @@ export interface TutorChatOptions {
   fetch?: (input: string, init: RequestInit) => Promise<Response>;
   /** Dónde guardar el `sessionId`: por defecto `localStorage`; `null` = solo en memoria. */
   storage?: Pick<Storage, "getItem" | "setItem"> | null;
-  subject?: Subject;
   /** Generador de uuid inyectable para los tests. */
   randomUUID?: () => string;
 }
@@ -77,9 +74,8 @@ export interface TutorChat {
   retry(): Promise<boolean>;
   /** Detiene el turno en curso conservando lo que ELI haya dicho ya. */
   stop(): void;
-  setSubject(subject: Subject | undefined): void;
   /** Carga un historial de mensajes desde una sesión guardada. */
-  loadMessages(messages: ChatMessage[], subject?: Subject): void;
+  loadMessages(messages: ChatMessage[]): void;
   /** Inicia una nueva conversación: nuevo sessionId y limpia el historial. */
   newSession(): void;
   /** Obtiene el sessionId actual. */
@@ -199,7 +195,6 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     messages: [],
     status: "idle",
     error: null,
-    subject: options.subject,
     meta: null,
     speakReplyId: null,
   };
@@ -250,7 +245,6 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     const request: ChatRequest = {
       sessionId: ensureSessionId(),
       messages: history,
-      ...(state.subject ? { subject: state.subject } : {}),
     };
     const own = new AbortController();
     controller = own;
@@ -348,9 +342,9 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     return run(state.messages, lastSpoken);
   };
 
-  const loadMessages = (messages: ChatMessage[], subject?: Subject) => {
+  const loadMessages = (messages: ChatMessage[]) => {
     lastSpoken = false;
-    setState({ messages, status: "idle", error: null, subject: subject ?? state.subject, speakReplyId: null });
+    setState({ messages, status: "idle", error: null, speakReplyId: null });
   };
 
   const newSession = () => {
@@ -365,7 +359,7 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
       // Sin almacenamiento: la sesión vive mientras dure la página.
     }
     lastSpoken = false;
-    setState({ messages: [], status: "idle", error: null, subject: options.subject, speakReplyId: null });
+    setState({ messages: [], status: "idle", error: null, speakReplyId: null });
   };
 
   const getSessionId = (): string => ensureSessionId();
@@ -381,7 +375,6 @@ export function createTutorChat(options: TutorChatOptions = {}): TutorChat {
     send,
     retry,
     stop: () => controller?.abort(),
-    setSubject: (subject) => setState({ subject }),
     loadMessages,
     newSession,
     getSessionId,
@@ -410,7 +403,6 @@ export function useTutorChat(options?: TutorChatOptions) {
     send: (text: string, image?: ChatImage, options?: SendOptions) => chat.send(text, image, options),
     retry: chat.retry,
     stop: chat.stop,
-    setSubject: chat.setSubject,
     loadMessages: chat.loadMessages,
     newSession: chat.newSession,
     getSessionId: chat.getSessionId,

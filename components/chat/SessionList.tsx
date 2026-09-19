@@ -27,19 +27,6 @@ function formatRelativeDate(isoString: string): string {
   }
 }
 
-function getSubjectLabel(subject: string | null): string {
-  switch (subject) {
-    case "mates":
-      return "Mates";
-    case "lengua":
-      return "Lengua";
-    case "ciencias":
-      return "Ciencias";
-    default:
-      return "Tema";
-  }
-}
-
 interface SessionListProps {
   onSessionClick?: () => void;
 }
@@ -110,7 +97,6 @@ export function SessionList({ onSessionClick }: SessionListProps) {
                 <p className="m-0 font-semibold text-ink truncate">
                   {session.title || "Conversación sin título"}
                 </p>
-                <p className="m-0 text-sm text-ink-soft">{getSubjectLabel(session.subject)}</p>
               </div>
               <p className="m-0 text-xs text-ink-soft whitespace-nowrap">
                 {formatRelativeDate(session.updatedAt)}

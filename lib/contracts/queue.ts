@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { chatMessageSchema, SUBJECTS } from "./chat";
-import type { ChatMessage, Subject } from "./chat";
+import { chatMessageSchema } from "./chat";
+import type { ChatMessage } from "./chat";
 
 /** Contrato de la cola de persistencia. Fuente de verdad: tasks.md, sección 6.3. */
 export interface PersistedMessage extends ChatMessage {
@@ -13,7 +13,6 @@ export interface PersistJob {
   sessionId: string;
   userId?: string;
   anonId?: string;
-  subject?: Subject;
   /** Historial completo de la conversación; la persistencia es idempotente por message.id. */
   messages: PersistedMessage[];
 }
@@ -32,6 +31,5 @@ export const persistJobSchema = z.object({
   sessionId: z.string().uuid(),
   userId: z.string().optional(),
   anonId: z.string().optional(),
-  subject: z.enum(SUBJECTS).optional(),
   messages: z.array(persistedMessageSchema).min(1),
 });

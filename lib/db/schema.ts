@@ -10,7 +10,6 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import { SUBJECTS } from "@/lib/contracts/chat";
 
 /**
  * Esquema de Neon (Postgres) en Drizzle. Fuente de verdad: tasks.md, sección 6.5.
@@ -79,7 +78,11 @@ export const chatSessions = pgTable(
     id: uuid("id").primaryKey(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     anonId: text("anon_id"),
-    subject: text("subject", { enum: SUBJECTS }),
+    /**
+     * OBSOLETA: ya no se lee ni se escribe (las asignaturas se quitaron de la app). Se conserva, con su
+     * CHECK, para no migrar producción; se puede borrar en una migración aparte.
+     */
+    subject: text("subject"),
     title: text("title"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
     updatedAt: timestamptz("updated_at").notNull().defaultNow(),

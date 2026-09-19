@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ELI_SYSTEM_PROMPT, REFUSAL_MESSAGE } from "@/lib/ai/prompt";
+import { ELI_SYSTEM_PROMPT, REFUSAL_MESSAGE, REPLY_STYLE_HINT } from "@/lib/ai/prompt";
 
 /**
  * Copia literal del bloque "Prompt de sistema" de north_star.md. Si este test falla, alguien cambió
@@ -55,5 +55,27 @@ describe("REFUSAL_MESSAGE", () => {
 
   it("no expone detalles técnicos", () => {
     expect(REFUSAL_MESSAGE).not.toMatch(/error|refusal|stop_reason|api/i);
+  });
+});
+
+describe("REPLY_STYLE_HINT: tareas en español o en inglés (las escuelas de México son bilingües)", () => {
+  it("pide responder en el idioma del estudiante, sea español o inglés", () => {
+    expect(REPLY_STYLE_HINT).toMatch(/español o en inglés/);
+    expect(REPLY_STYLE_HINT).toMatch(/idioma en que te escribe el estudiante/);
+  });
+
+  it("si escribe en español sobre una tarea en inglés, explica en español y cita el inglés", () => {
+    expect(REPLY_STYLE_HINT).toMatch(/en español sobre una tarea en inglés/);
+    expect(REPLY_STYLE_HINT).toMatch(/cita el inglés/);
+  });
+
+  it("por defecto, español; y sigue prohibiendo mostrar el razonamiento", () => {
+    expect(REPLY_STYLE_HINT).toMatch(/si no está claro, en español/);
+    expect(REPLY_STYLE_HINT).toMatch(/nunca muestres tu análisis/);
+  });
+
+  it("no toca el prompt literal de north_star.md: es un mensaje de sistema aparte", () => {
+    expect(REPLY_STYLE_HINT).not.toBe(ELI_SYSTEM_PROMPT);
+    expect(ELI_SYSTEM_PROMPT).not.toContain("inglés");
   });
 });

@@ -141,7 +141,7 @@ describe("createTutorChat: envío y streaming", () => {
     expect(new Headers(init.headers).get("content-type")).toBe("application/json");
     const body = bodyOf(init);
     expect(body.sessionId).toMatch(UUID);
-    expect(body.subject).toBeUndefined();
+    expect(body).not.toHaveProperty("subject");
     expect(body.messages).toHaveLength(1); // la burbuja vacía de ELI no viaja al servidor
     expect(body.messages[0]).toMatchObject({
       role: "user",
@@ -189,19 +189,15 @@ describe("createTutorChat: envío y streaming", () => {
     expect(lastContent(chat.getState())).toBe(text);
   });
 
-  it("manda la asignatura cuando está fijada", async () => {
+  it("nunca manda asignatura: ya no existen", async () => {
     const fetch = fakeFetch(() => textStream(["Ok"]));
-    const chat = make(fetch, { subject: "mates" });
+    const chat = make(fetch);
 
     await chat.send("Hola");
-    chat.setSubject("lengua");
     await chat.send("Sigo");
-    chat.setSubject(undefined);
     await chat.send("Y ahora");
 
-    expect(bodyOf(call(fetch, 0)).subject).toBe("mates");
-    expect(bodyOf(call(fetch, 1)).subject).toBe("lengua");
-    expect(bodyOf(call(fetch, 2)).subject).toBeUndefined();
+    for (const i of [0, 1, 2]) expect(bodyOf(call(fetch, i))).not.toHaveProperty("subject");
     expect(bodyOf(call(fetch, 2)).messages.map((m) => m.role)).toEqual([
       "user",
       "assistant",

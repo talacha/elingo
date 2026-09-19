@@ -37,10 +37,11 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
     it("upsertSession crea y luego refresca sin perder título ni asignatura", async () => {
       const anonId = anon();
       const id = newSessionId();
-      const created = await repo.upsertSession({ id, anonId, subject: "mates", title: "Fracciones" });
-      expect(created).toMatchObject({ id, title: "Fracciones", subject: "mates" });
+      const created = await repo.upsertSession({ id, anonId, title: "Fracciones" });
+      expect(created).toMatchObject({ id, title: "Fracciones" });
+      expect(created).not.toHaveProperty("subject");
       const again = await repo.upsertSession({ id, anonId });
-      expect(again).toMatchObject({ id, title: "Fracciones", subject: "mates" });
+      expect(again).toMatchObject({ id, title: "Fracciones" });
       expect(Date.parse(again.updatedAt)).toBeGreaterThanOrEqual(Date.parse(created.updatedAt));
       const retitled = await repo.upsertSession({ id, anonId, title: "Sumar fracciones" });
       expect(retitled.title).toBe("Sumar fracciones");
@@ -157,7 +158,7 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
     it("las conversaciones de un usuario se listan por userId", async () => {
       const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
       const sessionId = newSessionId();
-      await repo.upsertSession({ id: sessionId, userId: user.id, subject: "lengua" });
+      await repo.upsertSession({ id: sessionId, userId: user.id });
       expect((await repo.listSessions({ userId: user.id })).map((s) => s.id)).toEqual([sessionId]);
       expect(await repo.getSession(sessionId, { userId: user.id })).not.toBeNull();
       expect(await repo.getSession(sessionId, { anonId: anon() })).toBeNull();
@@ -184,32 +185,36 @@ function repoSuite(name: string, repo: Repo, cleanup?: Cleanup) {
       await expect(repo.updateUserFlags(uuid(), { allowVoice: false })).rejects.toThrow();
     });
 
-    it("M7: getSubjectInsights agrega por asignatura y detecta la trampa", async () => {
+    it("M7: getActivityInsight resume toda la actividad de la alumna y detecta la trampa", async () => {
       const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
       const s1 = newSessionId();
-      await repo.upsertSession({ id: s1, userId: user.id, subject: "mates" });
+      await repo.upsertSession({ id: s1, userId: user.id });
       await repo.insertMessages([
         { id: uuid(), sessionId: s1, role: "user", content: "3/4 + 1/2" },
         { id: uuid(), sessionId: s1, role: "assistant", content: "¿Qué datos tienes?" },
         { id: uuid(), sessionId: s1, role: "user", content: "dame la respuesta" },
       ]);
-      // Sesión sin asignatura: no debe contarse en ningún grupo.
-      const sNoSubject = newSessionId();
-      await repo.upsertSession({ id: sNoSubject, userId: user.id });
-      await repo.insertMessages([{ id: uuid(), sessionId: sNoSubject, role: "user", content: "hola" }]);
+      // Una segunda conversación cuenta también: ya no hay desglose ni conversaciones "sin asignatura".
+      const s2 = newSessionId();
+      await repo.upsertSession({ id: s2, userId: user.id });
+      await repo.insertMessages([{ id: uuid(), sessionId: s2, role: "user", content: "hola" }]);
 
-      const insights = await repo.getSubjectInsights(user.id);
-      expect(insights).toHaveLength(1);
-      expect(insights[0]).toMatchObject({ subject: "mates", sessionCount: 1, messageCount: 3, answerRequests: 1 });
-      expect(insights[0].lastActivity).not.toBeNull();
+      const insight = await repo.getActivityInsight(user.id);
+      expect(insight).toMatchObject({ sessionCount: 2, messageCount: 4, answerRequests: 1 });
+      expect(insight.lastActivity).not.toBeNull();
 
       const other = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId() });
-      expect(await repo.getSubjectInsights(other.id)).toEqual([]);
+      expect(await repo.getActivityInsight(other.id)).toEqual({
+        sessionCount: 0,
+        messageCount: 0,
+        answerRequests: 0,
+        lastActivity: null,
+      });
     });
 
     it("M7: listAllUsers incluye el número de sesiones", async () => {
       const user = await repo.upsertUserFromSupabase({ supabaseUserId: newSupabaseId(), displayName: "Ana" });
-      await repo.upsertSession({ id: newSessionId(), userId: user.id, subject: "ciencias" });
+      await repo.upsertSession({ id: newSessionId(), userId: user.id });
       const all = await repo.listAllUsers();
       const found = all.find((u) => u.id === user.id);
       expect(found).toMatchObject({ displayName: "Ana", sessionCount: 1 });

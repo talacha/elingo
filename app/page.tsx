@@ -56,30 +56,30 @@ const traits: Array<{ tone: string; icon: ReactNode; title: string; text: string
   },
 ];
 
-const subjects = [
+const help = [
   {
     band: "bg-sun",
     tilt: "-rotate-[1.5deg]",
-    title: "Matemáticas",
-    text: "Sumas, restas, fracciones y problemas.",
+    title: "Cualquier tarea",
+    text: "Cuéntale qué no entiendes, sea de lo que sea.",
   },
   {
     band: "bg-peach",
     tilt: "rotate-[1.2deg]",
-    title: "Español",
-    text: "Leer, escribir y contar historias.",
+    title: "Español e inglés",
+    text: "Tus tareas pueden estar en cualquiera de los dos idiomas.",
   },
   {
     band: "bg-sky",
     tilt: "-rotate-[0.8deg]",
-    title: "Ciencias",
-    text: "Plantas, animales, tu cuerpo y el espacio.",
+    title: "Paso a paso",
+    text: "Te guía con preguntas hasta que lo consigues tú.",
   },
 ];
 
 const does = [
   "Guía paso a paso con preguntas, al estilo socrático.",
-  "En matemáticas, desglosa el problema y pide identificar los datos primero.",
+  "Desglosa el problema y pide identificar los datos primero.",
   "Corrige siempre en positivo: «Buen intento, revisemos el paso anterior».",
   "Explica con analogías de hoy: videojuegos y vida cotidiana.",
 ];
@@ -256,28 +256,28 @@ export default function Home() {
           </ul>
         </section>
 
-        {/* Materias */}
-        <section aria-labelledby="t-materias" className="grid gap-3.5">
-          <Eyebrow>Materias</Eyebrow>
-          <h2 id="t-materias" className="text-title font-semibold">
+        {/* Cómo ayuda */}
+        <section aria-labelledby="t-ayuda" className="grid gap-3.5">
+          <Eyebrow>Cómo te ayuda</Eyebrow>
+          <h2 id="t-ayuda" className="text-title font-semibold">
             ¿Con qué te ayuda ELI?
           </h2>
           <ul className="mt-4 flex flex-wrap gap-[22px]">
-            {subjects.map((subject) => (
-              <li key={subject.title} className="max-w-[340px] flex-[1_1_240px]">
+            {help.map((item) => (
+              <li key={item.title} className="max-w-[340px] flex-[1_1_240px]">
                 <Card
                   as="article"
                   variant="paper"
                   padded={false}
                   className={cn(
                     "h-full overflow-hidden transition-[rotate,translate] duration-200 hover:-translate-y-1 hover:rotate-0 motion-reduce:transition-none",
-                    subject.tilt,
+                    item.tilt,
                   )}
                 >
-                  <div aria-hidden="true" className={cn("h-4", subject.band)} />
+                  <div aria-hidden="true" className={cn("h-4", item.band)} />
                   <div className="grid gap-1.5 px-5 pt-[18px] pb-5">
-                    <h3 className="text-2xl font-semibold">{subject.title}</h3>
-                    <p className="text-[1.02rem] text-paper-soft">{subject.text}</p>
+                    <h3 className="text-2xl font-semibold">{item.title}</h3>
+                    <p className="text-[1.02rem] text-paper-soft">{item.text}</p>
                     <span
                       aria-hidden="true"
                       className="mt-2.5 flex items-end gap-2 text-[0.82rem] tracking-[0.04em] text-paper-soft after:mb-[0.35em] after:flex-1 after:border-b-[1.5px] after:border-paper-line after:content-['']"

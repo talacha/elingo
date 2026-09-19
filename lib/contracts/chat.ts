@@ -1,8 +1,6 @@
 import { z } from "zod";
 
 /** Contrato de POST /api/chat. Fuente de verdad: tasks.md, sección 6.1. */
-export const SUBJECTS = ["mates", "lengua", "ciencias"] as const;
-export type Subject = (typeof SUBJECTS)[number];
 
 /** T-050: imagen adjunta a un mensaje (efímera, nunca se persiste). Fuente de verdad: tasks.md 6.7. */
 export const IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -30,7 +28,6 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
 export const chatRequestSchema = z.object({
   sessionId: z.string().uuid(),
-  subject: z.enum(SUBJECTS).optional(),
   messages: z.array(chatMessageSchema).min(1),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
