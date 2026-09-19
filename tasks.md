@@ -205,7 +205,7 @@ const final = await stream.finalMessage();          // final.usage, final.stop_r
 - **OpenRouter: la niña solo ve la respuesta final (T-080).** Tres capas, en `lib/ai/providers/openrouter.ts` + `replyFilter.ts`:
   1. La petición lleva `reasoning: { exclude: true }` y un segundo mensaje de sistema, `REPLY_STYLE_HINT` (`lib/ai/prompt.ts`; el literal de `north_star.md` no se toca): responder solo con el mensaje final, sin mostrar análisis, en el idioma del estudiante (español por defecto).
   2. `ReplyFilter` recorta los bloques `<think>…</think>` y retiene los primeros 60 caracteres para detectar una respuesta que **arranca como razonamiento en claro** («Here's a thinking process: 1. Analyze User Input…»). Si es así se descarta entera (no hay forma fiable de separar el borrador de la respuesta) y cuenta como intento fallido.
-  3. Un intento **fallido, colgado o filtrado** se reintenta UNA vez con `OPENROUTER_FALLBACK_MODEL` (`base_fallback_model`, solo sin foto). «Colgado» = ningún texto visible en `OPENROUTER_FIRST_TOKEN_TIMEOUT_MS` (20 s): así un modelo gratuito saturado no agota los 60 s de la función y devuelve un 504. Si el respaldo también falla, la niña ve `UPSTREAM_ERROR_MESSAGE`, nunca el razonamiento.
+  3. Un intento **fallido, colgado o filtrado** se reintenta UNA vez con el modelo de respaldo: `OPENROUTER_FALLBACK_MODEL` (`base_fallback_model`) para texto y `OPENROUTER_VISION_FALLBACK_MODEL` (`visual_fallback_model`) para preguntas con foto — uno aparte, porque el de texto podría no ver imágenes, así que **nunca** se usa con una foto. «Colgado» = ningún texto visible en `OPENROUTER_FIRST_TOKEN_TIMEOUT_MS` (20 s): así un modelo gratuito saturado no agota los 60 s de la función y devuelve un 504. Si el respaldo también falla, la niña ve `UPSTREAM_ERROR_MESSAGE`, nunca el razonamiento.
 - `MockProvider`: determinista, socrático, con negritas y viñetas, emite ~6 chunks con `MOCK_DELAY_MS` (0 en tests); si el último mensaje pide la solución ("dame la respuesta", "cuál es el resultado", "solución"), responde redirigiendo. Nunca contiene un resultado numérico final.
 
 ### 6.3 Rate limit y cola
@@ -289,6 +289,7 @@ Repositorio (`lib/db/repo.ts`): `upsertSession`, `insertMessages` (idempotente, 
 | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` = `base_model` (antes `deepseek/deepseek-v4-flash-0731:free`, y antes `anthropic/claude-fable-5.1`, que duplicaba coste sin motivo) | T-019, T-051, T-077 |
 | `OPENROUTER_VISION_MODEL` | `google/gemma-4-31b-it:free` = `visual_model` (gratis; entiende imagen y vídeo, no genera) | T-051, T-077, T-078 |
 | `OPENROUTER_FALLBACK_MODEL` | `deepseek/deepseek-v4-flash-0731:free` = `base_fallback_model` (antes vacío → sin reintento). Un valor vacío ya no lo desactiva: vale el de por defecto | T-051, T-080 |
+| `OPENROUTER_VISION_FALLBACK_MODEL` | `qwen/qwen3.8-27b:free` = `visual_fallback_model` (acepta imágenes; de otro proveedor que el visual: el gratuito de Gemma comparte cuota en Google AI Studio y a veces responde 429) | T-085 |
 | `OPENROUTER_FIRST_TOKEN_TIMEOUT_MS` | `20000`: si un intento no da texto visible en ese tiempo se aborta y se pasa al respaldo | T-080 |
 | `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` = `stt_model` (de pago, ~$0,012/hora de audio; no hay STT gratuito) | T-052, T-078 |
 | `OPENROUTER_TTS_MODEL` | `fish-audio/s2.1-pro-free:free` = `tts_model` (gratis, sin garantías de disponibilidad) | T-053, T-078 |
@@ -425,6 +426,7 @@ export const PARENT_UNLOCK_COOKIE = "eli_parent_unlock";
 | `ai_provider` | `AI_PROVIDER` | auto (`anthropic` si hay clave, si no `openrouter`, si no `mock`) | sí (`anthropic` \| `openrouter` \| `mock`) |
 | `base_model` | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` (alternativa: `openrouter/free`) | sí, debe aceptar texto |
 | `visual_model` | `OPENROUTER_VISION_MODEL` | `google/gemma-4-31b-it:free` | sí, debe aceptar imágenes |
+| `visual_fallback_model` | `OPENROUTER_VISION_FALLBACK_MODEL` | `qwen/qwen3.8-27b:free` | sí, debe aceptar imágenes |
 | `anthropic_model` | `ANTHROPIC_MODEL` | `claude-fable-5-1` | sí |
 | `stt_model` | `OPENROUTER_TRANSCRIBE_MODEL` | `openai/whisper-large-v3-turbo` | sí, debe estar en el catálogo STT |
 | `tts_model` · `tts_voice` | `OPENROUTER_TTS_MODEL` · `OPENROUTER_TTS_VOICE` | `fish-audio/s2.1-pro-free:free` · vacío | sí, debe estar en el catálogo TTS |

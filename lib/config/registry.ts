@@ -88,6 +88,17 @@ export const CONFIG_PARAMS = [
     editable: true,
   },
   {
+    key: "visual_fallback_model",
+    envKey: "OPENROUTER_VISION_FALLBACK_MODEL",
+    label: "Modelo visual de respaldo",
+    description:
+      "Se prueba una vez si el modelo visual falla (p. ej. un 429 del proveedor gratuito) en una pregunta con foto. Debe aceptar imágenes.",
+    category: "modelos",
+    kind: "model",
+    capability: "image",
+    editable: true,
+  },
+  {
     key: "anthropic_model",
     envKey: "ANTHROPIC_MODEL",
     label: "Modelo de Anthropic",

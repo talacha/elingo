@@ -34,6 +34,12 @@ export const envSchema = z.object({
    */
   OPENROUTER_FALLBACK_MODEL: z.string().default("deepseek/deepseek-v4-flash-0731:free"),
   /**
+   * `visual_fallback_model`: lo mismo para las preguntas con foto. Tiene que aceptar imágenes (por eso es un
+   * ajuste aparte del anterior). El modelo visual gratuito comparte cuota con todo el mundo en el proveedor y
+   * a veces responde 429; este es de otro proveedor (ModelRun) para que un 429 no deje a la niña sin respuesta.
+   */
+  OPENROUTER_VISION_FALLBACK_MODEL: z.string().default("qwen/qwen3.8-27b:free"),
+  /**
    * Si un intento no ha producido texto visible en este tiempo se aborta (y se reintenta con el modelo de
    * respaldo). Debe quedar bien por debajo de `maxDuration` (60 s) de /api/chat: dos intentos caben.
    */

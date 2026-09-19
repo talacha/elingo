@@ -47,6 +47,7 @@ const ENV_KEYS = [
   "OPENROUTER_MODEL",
   "OPENROUTER_VISION_MODEL",
   "OPENROUTER_FALLBACK_MODEL",
+  "OPENROUTER_VISION_FALLBACK_MODEL",
   "AI_MAX_OUTPUT_TOKENS",
   "NEXT_PUBLIC_APP_URL",
 ];
@@ -448,11 +449,12 @@ describe("OpenRouterProvider", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("T-051: no reintenta con fallback cuando la petición con imagen falla (el respaldo puede no ser multimodal)", async () => {
+  it("T-051: con foto, el respaldo es el modelo visual de respaldo y nunca el de texto (podría no ver imágenes)", async () => {
     process.env.OPENROUTER_API_KEY = "test-key";
     process.env.OPENROUTER_FALLBACK_MODEL = "inclusionai/ling-3.0-flash:free";
+    process.env.OPENROUTER_VISION_FALLBACK_MODEL = "vendor/vision-backup";
     resetEnvCache();
-    fetchSpy.mockResolvedValue(new Response("Rate limited", { status: 429 }));
+    fetchSpy.mockImplementation(async () => new Response("Rate limited", { status: 429 }));
 
     const withImage: TutorReplyInput = {
       ...input,
@@ -469,7 +471,9 @@ describe("OpenRouterProvider", () => {
     const { stream, done } = await provider.reply(withImage);
     await readAll(stream);
     await done;
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const models = fetchSpy.mock.calls.map((c: unknown[]) => JSON.parse((c[1] as RequestInit).body as string).model);
+    expect(models).toEqual(["google/gemma-4-31b-it:free", "vendor/vision-backup"]);
+    expect(models).not.toContain("inclusionai/ling-3.0-flash:free");
   });
 
   it("con finalize_reason null, mapea a end_turn", async () => {

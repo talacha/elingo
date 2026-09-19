@@ -57,15 +57,16 @@ interface OpenRouterSSEEvent {
  * - Implementa el mismo contrato `TutorProvider` que Anthropic y Mock.
  * - T-051: si el turno más reciente trae imágenes, la petición usa `visionModel`
  *   (`OPENROUTER_VISION_MODEL`) en vez de `model`, con `content` como array multimodal
- *   (`image_url` con `data:` URI + `text`). Con `fallbackModel` configurado, un fallo *antes*
- *   de emitir ningún texto (`!handle.emitted`) reintenta una vez con ese modelo — nunca en
- *   peticiones con imagen: el modelo de respaldo no tiene por qué ser multimodal.
+ *   (`image_url` con `data:` URI + `text`). Un fallo *antes* de emitir ningún texto
+ *   (`!handle.emitted`) reintenta una vez con el modelo de respaldo: `fallbackModel` para texto y
+ *   `visionFallbackModel` para fotos (uno aparte, porque el de texto podría no ver imágenes).
  */
 export class OpenRouterProvider implements TutorProvider {
   readonly name = "openrouter" as const;
   readonly model: string;
   readonly visionModel: string;
   private readonly fallbackModel: string | undefined;
+  private readonly visionFallbackModel: string | undefined;
   private readonly apiKey: string;
   private readonly appUrl: string;
   private readonly maxOutputTokens: number;
@@ -76,6 +77,7 @@ export class OpenRouterProvider implements TutorProvider {
     this.model = env.OPENROUTER_MODEL;
     this.visionModel = env.OPENROUTER_VISION_MODEL;
     this.fallbackModel = env.OPENROUTER_FALLBACK_MODEL;
+    this.visionFallbackModel = env.OPENROUTER_VISION_FALLBACK_MODEL;
     this.apiKey = env.OPENROUTER_API_KEY || "";
     this.appUrl = env.NEXT_PUBLIC_APP_URL;
     this.maxOutputTokens = env.AI_MAX_OUTPUT_TOKENS;
@@ -99,9 +101,10 @@ export class OpenRouterProvider implements TutorProvider {
   ): Promise<TutorOutcome> {
     const primaryModel = hasImage ? this.visionModel : this.model;
     const outcome = await this.attempt(primaryModel, input, handle);
-    const canFallback = !hasImage && this.fallbackModel && this.fallbackModel !== primaryModel;
-    if (outcome.stopReason === "error" && !handle.emitted && canFallback) {
-      return this.attempt(this.fallbackModel as string, input, handle);
+    // Con foto el respaldo es SU PROPIO modelo (que acepta imágenes); nunca el de texto, que podría no verlas.
+    const fallback = hasImage ? this.visionFallbackModel : this.fallbackModel;
+    if (outcome.stopReason === "error" && !handle.emitted && fallback && fallback !== primaryModel) {
+      return this.attempt(fallback, input, handle);
     }
     return outcome;
   }

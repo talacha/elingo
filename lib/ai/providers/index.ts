@@ -56,6 +56,7 @@ export async function getProviderWithOverrides(env: Env = getEnv()): Promise<Tut
     effectiveEnv.OPENROUTER_MODEL,
     effectiveEnv.OPENROUTER_VISION_MODEL,
     effectiveEnv.OPENROUTER_FALLBACK_MODEL,
+    effectiveEnv.OPENROUTER_VISION_FALLBACK_MODEL,
     effectiveEnv.AI_MAX_OUTPUT_TOKENS,
   ]);
   if (!overriddenCache || overriddenCache.key !== key) {
