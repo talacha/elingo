@@ -231,6 +231,14 @@ export class OpenRouterProvider implements TutorProvider {
         error ??= new Error("el modelo no respondió a tiempo");
       }
 
+      // Un 200 que termina sin ningún texto visible (p. ej. el modelo gastó todo su presupuesto en
+      // razonamiento oculto) no es una respuesta: sin esto la niña recibiría un cuerpo vacío en vez del
+      // modelo de respaldo o el aviso amable. Un rechazo (`refusal`) sí lleva su propio mensaje.
+      if (!handle.emitted && !error && stopReason !== "refusal") {
+        console.error("[ai/openrouter] el modelo terminó sin texto, se descarta", { model, stopReason });
+        return { usage, model, stopReason: "error", error: new Error("el modelo terminó sin texto") };
+      }
+
       return { usage, model, stopReason, error };
     } catch (error) {
       return { usage: { ...ZERO_USAGE }, model, stopReason: "error", error };
